@@ -1,2 +1,4 @@
 train_results/
+output/
+
 keys.env
