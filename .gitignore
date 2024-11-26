@@ -3,3 +3,5 @@ output/
 data/
 
 keys.env
+wandb/
+llama_singleGPU-v1/
