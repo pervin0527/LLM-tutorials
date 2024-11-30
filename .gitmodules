@@ -1,3 +1,6 @@
 [submodule "MoRA"]
 	path = MoRA
 	url = https://github.com/kongds/MoRA.git
+[submodule "Easy_DPO"]
+	path = Easy_DPO
+	url = https://github.com/DopeorNope-Lee/Easy_DPO
