@@ -22,7 +22,11 @@ pip install --upgrade ipywidgets notebook jupyterlab
 
 '''
 cd /path/to/LLM-tutorials  # 개인 레포지토리로 이동
+
 git submodule add https://github.com/kongds/MoRA.git
+git submodule update --init --recursive
+
+git submodule add https://github.com/DopeorNope-Lee/Easy_DPO
 git submodule update --init --recursive
 '''
 
