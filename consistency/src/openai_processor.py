@@ -17,7 +17,7 @@ async def chatgpt_response(
 ) -> str:
 
     # model = 'gpt-4o-mini'
-    temperature = 0
+    temperature = 0.2
 
     for attempt in range(retry_count):
         # OpenAI API 호출
