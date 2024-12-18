@@ -9,6 +9,7 @@ USER = os.getenv('USER')
 HOST = os.getenv('HOST')
 DB = os.getenv('DB')
 PW = os.getenv('PW')
+JWT = os.getenv("JWT")
 
 # 데이터베이스 설정
 db_config = {
@@ -49,7 +50,7 @@ def send_request_to_api(id_list):
     base_url = "https://dev-api.grabberhr.com/api/v2/public/tests/{testId}/ai-request"
     headers = {
         'accept': '*/*',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJ1c2VySWRcIjo3MTQzLFwiZW1haWxcIjpcImp1bkBncmF2eWxhYi5jby5rclwiLFwidXNlcm5hbWVcIjpcIuq5gOuvvOykgFwiLFwicm9sZVwiOlwiVVNFUlwiLFwibGFuZ3VhZ2VcIjpcImtvXCIsXCJqb2luVHlwZVwiOlwiRU1BSUxcIixcImVuYWJsZWRcIjp0cnVlLFwicGFzc3dvcmRcIjpcIlwiLFwiYXV0aG9yaXRpZXNcIjpbXSxcImFjY291bnROb25FeHBpcmVkXCI6dHJ1ZSxcImFjY291bnROb25Mb2NrZWRcIjp0cnVlLFwiY3JlZGVudGlhbHNOb25FeHBpcmVkXCI6dHJ1ZX0iLCJpYXQiOjE3MzQzMTU1MDQsImV4cCI6MTczNDMxNjEwNH0.ZpjuDNFvxap9GHU7GphpSRU_ygDz5oEcjwmWzMke6ws'
+        'Authorization': f'Bearer {JWT}'
     }
 
     for id_value in id_list:
@@ -59,8 +60,8 @@ def send_request_to_api(id_list):
             response = requests.get(url, headers=headers)  # GET 요청
             if response.status_code == 200:
                 try:
-                    # data = response.json()  # JSON 파싱
-                    data = response.text
+                    data = response.json()  # JSON 파싱
+                    # data = response.text
                     print(f"Success: ID {id_value} processed. Response: {data}")
                 except ValueError:
                     print(f"Success: ID {id_value} processed, but response is not valid JSON. Raw response: {response.text}")
@@ -69,31 +70,35 @@ def send_request_to_api(id_list):
         except Exception as e:
             print(f"Error sending request for ID {id_value}: {e}")
 
-# # 첫 번째 쿼리 실행
-# query1 = """
-# SELECT id
-# FROM hr_culture_test
-# WHERE auth_code IS NOT NULL;
-# """
-# ids_with_auth_code = fetch_ids(query1)
-# print(f"Fetched valid UUIDs with auth_code: {len(ids_with_auth_code)}")
-# test = ids_with_auth_code[0]
 
-# # REST API 호출
-# # send_request_to_api(ids_with_auth_code)
-# send_request_to_api([test])
+def main():
+# 첫 번째 쿼리 실행
+    query1 = """
+    SELECT id
+    FROM hr_culture_test
+    WHERE auth_code IS NOT NULL;
+    """
+    # ids_with_auth_code = fetch_ids(query1)
+    # print(f"Fetched valid UUIDs with auth_code: {len(ids_with_auth_code)}")
+    # test = ids_with_auth_code[0]
+    # send_request_to_api([test])
+    # send_request_to_api(ids_with_auth_code)
 
-# 두 번째 쿼리 실행
-query2 = """
-SELECT id
-FROM hr_culture_test
-WHERE auth_code IS NOT NULL
-  AND enabled = FALSE;
-"""
-ids_with_auth_code_disabled = fetch_ids(query2)
-print(f"Fetched valid UUIDs with auth_code and disabled: {len(ids_with_auth_code_disabled)}")
-test = ids_with_auth_code_disabled[0]
+    # 두 번째 쿼리 실행
+    query2 = """
+    SELECT id
+    FROM hr_culture_test
+    WHERE auth_code IS NOT NULL
+      AND enabled = FALSE;
+    """
+    ids_with_auth_code_disabled = fetch_ids(query2)
+    print(f"Fetched valid UUIDs with auth_code and disabled: {len(ids_with_auth_code_disabled)}")
+    
+    test = ids_with_auth_code_disabled[0]
+    send_request_to_api([test])
 
-# REST API 호출
-send_request_to_api(ids_with_auth_code_disabled)
-# send_request_to_api([test])
+    # send_request_to_api(ids_with_auth_code_disabled)
+
+
+if __name__=="__main__":
+    main()
