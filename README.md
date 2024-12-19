@@ -4,13 +4,7 @@
 
 ```bash
 docker build -t llm_image:latest .
-docker run --gpus all -it --name llm \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v /home/pervinco/:/home/pervinco/ \
-    -e DISPLAY=$DISPLAY \
-    -p 7007:22 \
-    llm_image:latest
-
+docker run --gpus all -it --name llm -v /home/pervinco/:/home/pervinco/ llm_image:latest
 docker start llm
 docker exec -it llm bash
 

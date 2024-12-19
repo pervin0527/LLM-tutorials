@@ -2,6 +2,7 @@ import os
 import uuid
 import psycopg2
 import requests
+import json
 
 from dotenv import load_dotenv
 load_dotenv('./keys.env')
@@ -45,13 +46,15 @@ def fetch_ids(query):
             cursor.close()
             connection.close()
 
-# REST API 호출
-def send_request_to_api(id_list):
+# REST API 호출 및 결과 저장
+def send_request_to_api(id_list, output_file):
     base_url = "https://dev-api.grabberhr.com/api/v2/public/tests/{testId}/ai-request"
     headers = {
         'accept': '*/*',
         'Authorization': f'Bearer {JWT}'
     }
+
+    all_responses = []  # 응답 데이터를 저장할 리스트
 
     for id_value in id_list:
         print(id_value)
@@ -61,18 +64,26 @@ def send_request_to_api(id_list):
             if response.status_code == 200:
                 try:
                     data = response.json()  # JSON 파싱
-                    # data = response.text
-                    print(f"Success: ID {id_value} processed. Response: {data}")
+                    all_responses.append(data)  # 응답 데이터 저장
+                    print(f"Success: ID {id_value} processed.")
                 except ValueError:
-                    print(f"Success: ID {id_value} processed, but response is not valid JSON. Raw response: {response.text}")
+                    print(f"Success: ID {id_value} processed, but response is not valid JSON.")
             else:
                 print(f"Failed for ID {id_value}: {response.status_code}, {response.text}")
         except Exception as e:
             print(f"Error sending request for ID {id_value}: {e}")
 
+    # 모든 응답 데이터를 파일에 저장
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(all_responses, f, ensure_ascii=False, indent=4)
+        print(f"All responses saved to {output_file}.")
+    except Exception as e:
+        print(f"Error saving responses to file: {e}")
+
 
 def main():
-# 첫 번째 쿼리 실행
+    # 첫 번째 쿼리 실행
     query1 = """
     SELECT id
     FROM hr_culture_test
@@ -93,12 +104,10 @@ def main():
     """
     ids_with_auth_code_disabled = fetch_ids(query2)
     print(f"Fetched valid UUIDs with auth_code and disabled: {len(ids_with_auth_code_disabled)}")
-    
-    test = ids_with_auth_code_disabled[0]
-    send_request_to_api([test])
 
-    # send_request_to_api(ids_with_auth_code_disabled)
+    # API 호출 및 결과 저장
+    send_request_to_api(ids_with_auth_code_disabled, "../data/dev-survey-result.json")
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
