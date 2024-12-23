@@ -27,3 +27,15 @@ git submodule update --init --recursive
 ## Step1 - 싱글턴 데이터셋
 
  - Train Dataset : [https://huggingface.co/datasets/nlpai-lab/kullm-v2](https://huggingface.co/datasets/nlpai-lab/kullm-v2)
+
+
+## vLLM
+
+```bash
+apt install python3.10-venv -y
+python3 -m venv vllm
+source vllm/bin/activate
+
+pip install --upgrade pip
+pip install vllm transformers
+```
