@@ -8,6 +8,7 @@ docker run --gpus all -it --name llm -v /home/pervinco/:/home/pervinco/ llm_imag
 docker start llm
 docker exec -it llm bash
 
+pip install -r requirements.txt
 pip install --upgrade ipywidgets notebook jupyterlab
 ```
 
