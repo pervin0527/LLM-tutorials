@@ -1,15 +1,41 @@
-FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu22.04
+FROM python:3.9-slim
 
-# 환경 변수 설정
-ENV DEBIAN_FRONTEND=noninteractive
-ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
-
-# 기본 패키지 설치
+# Install dependencies
 RUN apt-get update && apt-get install -y \
-    git python3-pip python3-dev libglib2.0-0 libpq-dev gcc
+    wget \
+    curl \
+    gnupg \
+    unzip \
+    --fix-broken && \
+    rm -rf /var/lib/apt/lists/*
 
-# PyTorch 설치 (CUDA 11.7 호환)
-RUN pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2
+# Google Chrome 설치 (127.0.6533.88 버전)
+RUN wget -q https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_127.0.6533.88-1_amd64.deb && \
+    apt-get update && \
+    apt-get install -y ./google-chrome-stable_127.0.6533.88-1_amd64.deb && \
+    rm google-chrome-stable_127.0.6533.88-1_amd64.deb && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# 기본 쉘 실행
-CMD ["bash"]
+# 설치된 Chrome 버전 확인
+RUN google-chrome --version
+
+# ChromeDriver 설치 (크롬 버전과 일치)
+RUN wget -O /tmp/chromedriver.zip https://storage.googleapis.com/chrome-for-testing-public/127.0.6533.88/linux64/chromedriver-linux64.zip && \
+    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
+    chmod +x /usr/local/bin/chromedriver-linux64/chromedriver && \
+    rm /tmp/chromedriver.zip
+
+
+# Install Python dependencies
+COPY requirements.txt /app/requirements.txt
+RUN python -m pip install --upgrade pip && \
+    pip install --no-cache-dir -r /app/requirements.txt
+
+
+# Copy application files
+COPY src/ /app/
+WORKDIR /app
+
+# Default command
+CMD ["python", "main.py"]
