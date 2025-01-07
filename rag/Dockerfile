@@ -1,4 +1,6 @@
-FROM python:3.9-slim
+# FROM python:3.9-slim
+FROM --platform=linux/amd64 ubuntu:focal
+ARG DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -6,7 +8,14 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
     unzip \
+    software-properties-common \
+    python3.9 \
+    python3.9-venv \
+    python3-pip \
     --fix-broken && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1 && \
+    update-alternatives --set python3 /usr/bin/python3.9 && \
+    python3 -m pip install --upgrade pip && \
     rm -rf /var/lib/apt/lists/*
 
 # Google Chrome 설치 (127.0.6533.88 버전)
@@ -26,16 +35,6 @@ RUN wget -O /tmp/chromedriver.zip https://storage.googleapis.com/chrome-for-test
     chmod +x /usr/local/bin/chromedriver-linux64/chromedriver && \
     rm /tmp/chromedriver.zip
 
-
 # Install Python dependencies
 COPY requirements.txt /app/requirements.txt
-RUN python -m pip install --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements.txt
-
-
-# Copy application files
-COPY src/ /app/
-WORKDIR /app
-
-# Default command
-CMD ["python", "main.py"]
+RUN python3 -m pip install --no-cache-dir -r /app/requirements.txt
