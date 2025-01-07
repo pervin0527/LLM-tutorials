@@ -1,3 +1,4 @@
+import json
 import time
 
 from tqdm import tqdm
@@ -25,6 +26,7 @@ class SaraminCrawler:
             "depth1_btn_110000", "depth1_btn_111000", "depth1_btn_112000", "depth1_btn_113000", "depth1_btn_115000",
             "depth1_btn_114000", "depth1_btn_116000", "depth1_btn_117000"
         ]
+
 
     def list_items_crawling(self, list_items:List[WebElement], region: str):
         total_data = []
@@ -56,7 +58,7 @@ class SaraminCrawler:
         return total_data
 
 
-    def crawling(self):
+    def recruit_list_crawling(self):
         total_recruits = []
 
         for id in self.region_ids:
@@ -79,7 +81,7 @@ class SaraminCrawler:
             else:
                 last_page = self.cfg['last_page']
 
-            with tqdm(total=last_page, desc=f"Crawling") as page_pbar:
+            with tqdm(total=last_page, desc=f"Recruit List Crawling") as page_pbar:
                 while curr_page <= last_page:
                     self.browser.get(f"https://www.saramin.co.kr/zf_user/jobs/list/domestic?page={curr_page}&loc_mcd={id}&tab_type=default&search_optional_item=n&search_done=y&panel_count=y&isAjaxRequest=0&page_count=50&sort=RL&type=domestic&is_param=1&isSearchResultEmpty=1&isSectionHome=0&searchParamCount=1#searchTitle")
                     time.sleep(1.5)
@@ -98,3 +100,21 @@ class SaraminCrawler:
             print()
 
         return total_recruits
+    
+
+    def recruit_post_crawling(self, recruits: List[dict]):
+        total_data = []
+        for recruit in tqdm(recruits, desc="Recruit Post Crawling"):
+            try:
+                url = recruit.get("recruit_url")
+                if not url:
+                    continue
+
+                self.browser.get(url)
+                time.sleep(1.5)
+                
+            except Exception as e:
+                print(f"Error processing {recruit.get('recruit_url')}: {e}")
+                continue
+
+        return total_data

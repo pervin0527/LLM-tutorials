@@ -45,3 +45,10 @@ def save_to_json(data, filename="recruit_data.json"):
         json.dump(data, f, ensure_ascii=False, indent=4)
     
     print(f"Data saved to {filename}")
+
+def load_to_json(path):
+    with open(path, 'r') as f:
+        recruit_data = json.load(f)
+
+    print(f"Data loaded {path}")
+    return recruit_data
