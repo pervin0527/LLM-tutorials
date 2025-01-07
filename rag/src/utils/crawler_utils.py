@@ -1,4 +1,5 @@
 import time
+import json
 
 def region_scroll_down(element, browser, scroll_pause_time=1):
     current_top = int(browser.execute_script("return parseInt(arguments[0].style.top.replace('px', '')) || 0;", element))
@@ -18,14 +19,6 @@ def region_scroll_down(element, browser, scroll_pause_time=1):
 
 
 def page_scroll_down(browser, scroll_step=500, delay=1.0):
-    """
-    페이지를 일정 간격으로 스크롤하며 가장 아래까지 내립니다.
-
-    Args:
-        browser (webdriver): Selenium WebDriver 인스턴스.
-        scroll_step (int): 한 번에 스크롤할 픽셀 크기. 기본값은 500픽셀입니다.
-        delay (float): 각 스크롤 후 대기 시간(초). 기본값은 1초입니다.
-    """
     last_height = browser.execute_script("return document.body.scrollHeight")
     current_position = 0
 
@@ -45,3 +38,10 @@ def page_scroll_down(browser, scroll_step=500, delay=1.0):
             break
         
         last_height = new_height
+
+
+def save_to_json(data, filename="recruit_data.json"):
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    
+    print(f"Data saved to {filename}")
