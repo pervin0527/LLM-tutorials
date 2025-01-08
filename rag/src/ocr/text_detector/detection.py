@@ -2,8 +2,8 @@ import cv2
 import torch
 import numpy as np
 
-import image_processor
-import model_utils
+from ocr.text_detector import model_utils
+from ocr.text_detector import image_processor
 
 def detect(model, image, text_thres, link_thres, low_text, cuda, poly, refine_net=None):
     resized_img, target_ratio, heatmap_size = image_processor.resize_aspect_ratio(image, square_size=1280, interpolation=cv2.INTER_LINEAR, mag_ratio=1.5)

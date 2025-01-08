@@ -1,8 +1,13 @@
 last_page: 1
 scroll_step: 1500
 
+
 cuda: True
+
+detector_weight: /home/jake/LLM-tutorials/rag/src/ocr/text_detector/weights/craft_mlt_25k.pth
 text_thres: 0.7
+link_thres: 0.4
 low_text: 0.4
 poly: False
 refine: False
+refine_net: null

@@ -1,7 +1,9 @@
 import os
 import cv2
 import time
+import unicodedata
 
+from PIL import Image
 from tqdm import tqdm
 from typing import List
 
@@ -10,6 +12,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
+
+from transformers import TrOCRProcessor, AutoTokenizer, AutoModelForImageTextToText
+
 
 from utils.browser_options import load_options
 from utils.crawler_utils import page_scroll_down
@@ -173,32 +178,85 @@ class SaraminCrawler:
         return img_files
 
 
-    def extract_text_from_images(self, model, img_files):
+    # def extract_text_from_images(self, model, img_files):
+    #     image_path = "/".join(img_files[0].split("/")[:-2])
+    #     result_folder = image_path + "/results"
+    #     os.makedirs(result_folder, exist_ok=True)
+        
+    #     for img_file in img_files:
+    #         image = load_image(img_file)
+    #         bboxes, polys, score_text = detect(model, 
+    #                                            image, 
+    #                                            text_thres=self.cfg['text_thres'], 
+    #                                            link_thres=self.cfg['link_thres'], 
+    #                                            low_text=self.cfg['low_text'], 
+    #                                            cuda=self.cfg['cuda'],
+    #                                            poly=self.cfg['poly'],
+    #                                            refine_net=self.cfg['refine_net'])
+            
+    #         filename, file_ext = os.path.splitext(os.path.basename(img_file))
+    #         mask_file = result_folder + "/res_" + filename + '_mask.jpg'
+    #         cv2.imwrite(mask_file, score_text)
+    #         saveResult(img_file, image[:,:,::-1], polys, dirname=result_folder)
+
+
+    def extract_text_from_images(self, img_files, detector, processor, tokenizer, recognizer):
         image_path = "/".join(img_files[0].split("/")[:-2])
-        result_folder = image_path + "/detect_result"
+        result_folder = image_path + "/results"
         os.makedirs(result_folder, exist_ok=True)
         
+        all_texts = []  # 모든 텍스트를 저장할 리스트
         for img_file in img_files:
+            # 이미지 불러오기
             image = load_image(img_file)
-            bboxes, polys, score_text = detect(model, 
+            
+            # 텍스트 영역 감지
+            bboxes, polys, score_text = detect(detector, 
                                                image, 
                                                text_thres=self.cfg['text_thres'], 
                                                link_thres=self.cfg['link_thres'], 
                                                low_text=self.cfg['low_text'], 
                                                cuda=self.cfg['cuda'],
                                                poly=self.cfg['poly'],
-                                               refine_net=self.cfg['refine'])
+                                               refine_net=self.cfg['refine_net'])
             
-        filename, file_ext = os.path.splitext(os.path.basename(img_file))
-        mask_file = result_folder + "/res_" + filename + '_mask.jpg'
-        cv2.imwrite(mask_file, score_text)
+            # 감지된 각 영역에서 텍스트 추출
+            for poly in polys:
+                x_min = int(min(poly[:, 0]))
+                y_min = int(min(poly[:, 1]))
+                x_max = int(max(poly[:, 0]))
+                y_max = int(max(poly[:, 1]))
+                
+                # 영역 잘라내기
+                cropped_image = image[y_min:y_max, x_min:x_max]
+                cropped_pil_image = Image.fromarray(cropped_image)
+                
+                # TrOCR 모델을 사용해 텍스트 추출
+                pixel_values = processor(cropped_pil_image, return_tensors="pt").pixel_values
+                generated_ids = recognizer.generate(pixel_values, max_length=64)
+                generated_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+                generated_text = unicodedata.normalize("NFC", generated_text)
+                
+                all_texts.append(generated_text)
+            
+            # 결과 마스크 저장
+            filename, file_ext = os.path.splitext(os.path.basename(img_file))
+            mask_file = result_folder + "/res_" + filename + '_mask.jpg'
+            cv2.imwrite(mask_file, score_text)
+            saveResult(img_file, image[:, :, ::-1], polys, dirname=result_folder)
 
-        saveResult(img_file, image[:,:,::-1], polys, dirname=result_folder)
+        # 추출된 모든 텍스트를 하나로 반환
+        return " ".join(all_texts)
+
 
             
 
     def recruit_post_crawling(self, recruits: List[dict]):
-        model = load_model(self.cfg)
+        detector = load_model(self.cfg)
+
+        processor = TrOCRProcessor.from_pretrained("ddobokki/ko-trocr") 
+        tokenizer = AutoTokenizer.from_pretrained("ddobokki/ko-trocr")
+        recognizer = AutoModelForImageTextToText.from_pretrained("ddobokki/ko-trocr")
 
         total_data = []
         for recruit in tqdm(recruits, desc="Recruit Post Crawling"):
@@ -218,8 +276,10 @@ class SaraminCrawler:
 
             jv_detail = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_detail")
             img_files = self.scroll_and_capture(self.browser, jv_detail)
-            self.extract_text_from_images(model, img_files)
+            texts = self.extract_text_from_images(img_files, detector, processor, tokenizer, recognizer)
+            data.update({"상세 내용" : texts})
 
+            print(data)
             total_data.append(data)
             break
 

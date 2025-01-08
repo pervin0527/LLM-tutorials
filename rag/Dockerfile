@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
@@ -28,14 +28,9 @@ RUN wget -O /tmp/chromedriver.zip https://storage.googleapis.com/chrome-for-test
     chmod +x /usr/local/bin/chromedriver-linux64/chromedriver && \
     rm /tmp/chromedriver.zip
 
-RUN pip3 install --no-cache-dir \
-torch==2.4.0 \
-torchvision==0.19.0 \
-torchtext==0.18.0 \
-torchmetrics==1.5.1 \
-jupyter
-
+    
 COPY requirements.txt ./requirements.txt
 RUN python3 -m pip install --no-cache-dir -r ./requirements.txt
+RUN pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
 
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
