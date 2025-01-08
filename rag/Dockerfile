@@ -1,22 +1,15 @@
-# FROM python:3.9-slim
-FROM --platform=linux/amd64 ubuntu:focal
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    gnupg \
-    unzip \
-    software-properties-common \
-    python3.9 \
-    python3.9-venv \
-    python3-pip \
-    --fix-broken && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1 && \
-    update-alternatives --set python3 /usr/bin/python3.9 && \
-    python3 -m pip install --upgrade pip && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y \
+        git \
+        python3-pip \
+        python3-dev \
+        python3-opencv \
+        libglib2.0-0 \
+        libpq-dev gcc
 
 # Google Chrome 설치 (127.0.6533.88 버전)
 RUN wget -q https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_127.0.6533.88-1_amd64.deb && \
@@ -35,6 +28,14 @@ RUN wget -O /tmp/chromedriver.zip https://storage.googleapis.com/chrome-for-test
     chmod +x /usr/local/bin/chromedriver-linux64/chromedriver && \
     rm /tmp/chromedriver.zip
 
-# Install Python dependencies
-COPY requirements.txt /app/requirements.txt
-RUN python3 -m pip install --no-cache-dir -r /app/requirements.txt
+RUN pip3 install --no-cache-dir \
+torch==2.4.0 \
+torchvision==0.19.0 \
+torchtext==0.18.0 \
+torchmetrics==1.5.1 \
+jupyter
+
+COPY requirements.txt ./requirements.txt
+RUN python3 -m pip install --no-cache-dir -r ./requirements.txt
+
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
