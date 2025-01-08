@@ -1,7 +1,6 @@
 import os
 import cv2
 import time
-import pytesseract
 
 from tqdm import tqdm
 from typing import List
@@ -14,6 +13,11 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from utils.browser_options import load_options
 from utils.crawler_utils import page_scroll_down
+
+from ocr.text_detector.detection import detect
+from ocr.text_detector.model_utils import load_model
+from ocr.text_detector.image_processor import load_image
+from ocr.text_detector.file_utils import saveResult
 
 
 class SaraminCrawler:
@@ -169,20 +173,33 @@ class SaraminCrawler:
         return img_files
 
 
-    def extract_text_from_images(self, img_files):
-        extracted_texts = {}
-        for img_file in sorted(img_files):
-            if img_file.endswith(".png"):
-                image = cv2.imread(img_file)
+    def extract_text_from_images(self, model, img_files):
+        image_path = "/".join(img_files[0].split("/")[:-2])
+        result_folder = image_path + "/detect_result"
+        os.makedirs(result_folder, exist_ok=True)
+        
+        for img_file in img_files:
+            image = load_image(img_file)
+            bboxes, polys, score_text = detect(model, 
+                                               image, 
+                                               text_thres=self.cfg['text_thres'], 
+                                               link_thres=self.cfg['link_thres'], 
+                                               low_text=self.cfg['low_text'], 
+                                               cuda=self.cfg['cuda'],
+                                               poly=self.cfg['poly'],
+                                               refine_net=self.cfg['refine'])
+            
+        filename, file_ext = os.path.splitext(os.path.basename(img_file))
+        mask_file = result_folder + "/res_" + filename + '_mask.jpg'
+        cv2.imwrite(mask_file, score_text)
 
-                text = pytesseract.image_to_string(image, lang="kor+eng")
-                file_name = img_file.split('/')[0]
-                extracted_texts[file_name] = text
+        saveResult(img_file, image[:,:,::-1], polys, dirname=result_folder)
 
-        return extracted_texts
-
+            
 
     def recruit_post_crawling(self, recruits: List[dict]):
+        model = load_model(self.cfg)
+
         total_data = []
         for recruit in tqdm(recruits, desc="Recruit Post Crawling"):
             url = recruit.get("recruit_url")
@@ -201,7 +218,7 @@ class SaraminCrawler:
 
             jv_detail = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_detail")
             img_files = self.scroll_and_capture(self.browser, jv_detail)
-            texts = self.extract_text_from_images(img_files)            
+            self.extract_text_from_images(model, img_files)
 
             total_data.append(data)
             break

@@ -1,2 +1,8 @@
 last_page: 1
 scroll_step: 1500
+
+cuda: True
+text_thres: 0.7
+low_text: 0.4
+poly: False
+refine: False
