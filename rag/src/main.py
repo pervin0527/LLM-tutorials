@@ -1,4 +1,5 @@
 import os
+import random
 
 from crawlers.saramin import SaraminCrawler
 
@@ -9,10 +10,11 @@ def main(cfg):
     os.makedirs("../data", exist_ok=True)
 
     saramin_crawler = SaraminCrawler(cfg)
-    saramin_dataset = saramin_crawler.recruit_list_crawling()
-    save_to_json(saramin_dataset, "../data/saramin_raw.json")
+    # saramin_dataset = saramin_crawler.recruit_list_crawling()
+    # save_to_json(saramin_dataset, "../data/saramin_raw.json")
 
     dataset = load_to_json("../data/saramin_raw.json")
+    random.shuffle(dataset)
     saramin_crawler.recruit_post_crawling(dataset)
         
 if __name__ == "__main__":

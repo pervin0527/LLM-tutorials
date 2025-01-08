@@ -1,5 +1,7 @@
-import json
+import os
+import cv2
 import time
+import pytesseract
 
 from tqdm import tqdm
 from typing import List
@@ -102,19 +104,106 @@ class SaraminCrawler:
         return total_recruits
     
 
+    def column_process(self, cols):
+        data = {}
+        for col in cols:
+            dls = col.find_elements(By.TAG_NAME, "dl")
+            for dl in dls:
+                dt = dl.find_element(By.TAG_NAME, "dt").text
+
+                if dt != "필수사항":
+                    dd = dl.find_element(By.TAG_NAME, "dd").text
+                    if dt == "급여":
+                        dd = dd.split("\n")[0]
+                    elif dt == "근무지역":
+                        dd = " ".join(dd.split(" ")[:-1])
+
+                else:
+                    dd = dl.find_element(By.TAG_NAME, "dd")
+                    tool_tip_wrap = dd.find_element(By.CLASS_NAME, "toolTipWrap")
+                    tool_tip_wrap.click()
+
+                    tool_tip = tool_tip_wrap.find_element(By.CLASS_NAME, "toolTip")
+                    tool_tip_cont = tool_tip.find_element(By.CLASS_NAME, "toolTipCont")
+                    tool_tip_txt = tool_tip_cont.find_element(By.CLASS_NAME, "toolTipTxt")
+                    lis = tool_tip_txt.find_elements(By.TAG_NAME, "li")
+
+                    details = {}
+                    for li in lis:
+                        key = li.find_element(By.TAG_NAME, "span").text.strip()
+                        value = li.text.replace(key, "").strip().split(", ")
+                        details[key] = value
+                    
+                    dd = details
+                data.update({dt: dd})
+        return data
+    
+
+    def scroll_and_capture(self, browser, element, output_dir="../imgs"):
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # 요소 위치와 크기 가져오기
+        location = element.location
+        size = element.size
+        total_width, total_height = size['width'], size['height']
+        viewport_height = browser.execute_script("return window.innerHeight")
+
+        # 스크롤 위치 초기화
+        scroll_y = 0
+        screenshot_index = 0
+        img_files = []
+        while scroll_y < total_height:
+            # 현재 스크롤 위치 설정
+            browser.execute_script(f"window.scrollTo(0, {location['y'] + scroll_y});")
+            time.sleep(1)  # 스크롤 후 렌더링 대기
+
+            # 스크린샷 저장
+            screenshot_path = os.path.join(output_dir, f"screenshot_{screenshot_index}.png")
+            browser.save_screenshot(screenshot_path)
+            img_files.append(screenshot_path)
+
+            scroll_y += viewport_height
+            screenshot_index += 1
+
+        return img_files
+
+
+    def extract_text_from_images(self, img_files):
+        extracted_texts = {}
+        for img_file in sorted(img_files):
+            if img_file.endswith(".png"):
+                image = cv2.imread(img_file)
+
+                text = pytesseract.image_to_string(image, lang="kor+eng")
+                file_name = img_file.split('/')[0]
+                extracted_texts[file_name] = text
+
+        return extracted_texts
+
+
     def recruit_post_crawling(self, recruits: List[dict]):
         total_data = []
         for recruit in tqdm(recruits, desc="Recruit Post Crawling"):
-            try:
-                url = recruit.get("recruit_url")
-                if not url:
-                    continue
-
-                self.browser.get(url)
-                time.sleep(1.5)
-                
-            except Exception as e:
-                print(f"Error processing {recruit.get('recruit_url')}: {e}")
+            url = recruit.get("recruit_url")
+            if not url:
                 continue
+
+            self.browser.get(url)
+            time.sleep(1.5)
+
+            wrap_jv_cont = self.browser.find_element(By.CLASS_NAME, "wrap_jv_cont")
+            
+            jv_summary = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_summary")
+            cont = jv_summary.find_element(By.CLASS_NAME, "cont")
+            cols = cont.find_elements(By.CLASS_NAME, "col")
+            data = self.column_process(cols)
+
+            jv_detail = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_detail")
+            img_files = self.scroll_and_capture(self.browser, jv_detail)
+            texts = self.extract_text_from_images(img_files)            
+
+            total_data.append(data)
+            break
 
         return total_data
