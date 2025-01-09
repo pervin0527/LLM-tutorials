@@ -11,11 +11,13 @@ def main(cfg):
 
     saramin_crawler = SaraminCrawler(cfg)
     # saramin_dataset = saramin_crawler.recruit_list_crawling()
-    # save_to_json(saramin_dataset, "../data/saramin_raw.json")
+    # save_to_json(saramin_dataset, "../data/saramin_summary_data.json")
 
-    dataset = load_to_json("../data/saramin_raw.json")
-    random.shuffle(dataset)
-    saramin_crawler.recruit_post_crawling(dataset)
+    dataset = load_to_json("../data/saramin_summary_data.json")
+    # random.shuffle(dataset)
+
+    total_data = saramin_crawler.recruit_post_crawling(dataset[:10])
+    save_to_json(total_data, "../data/saramin_detail_data.json")
         
 if __name__ == "__main__":
     cfg = read_config("../configs/config.yaml")

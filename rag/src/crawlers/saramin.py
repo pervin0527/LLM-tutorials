@@ -1,3 +1,4 @@
+import re
 import os
 import cv2
 import time
@@ -20,9 +21,9 @@ from utils.browser_options import load_options
 from utils.crawler_utils import page_scroll_down
 
 from ocr.text_detector.detection import detect
+from ocr.text_detector.file_utils import saveResult
 from ocr.text_detector.model_utils import load_model
 from ocr.text_detector.image_processor import load_image
-from ocr.text_detector.file_utils import saveResult
 
 
 class SaraminCrawler:
@@ -148,7 +149,7 @@ class SaraminCrawler:
         return data
     
 
-    def scroll_and_capture(self, browser, element, output_dir="../imgs"):
+    def scroll_and_capture(self, rec_id, browser, element, output_dir="../imgs"):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
@@ -168,7 +169,7 @@ class SaraminCrawler:
             time.sleep(1)  # 스크롤 후 렌더링 대기
 
             # 스크린샷 저장
-            screenshot_path = os.path.join(output_dir, f"screenshot_{screenshot_index}.png")
+            screenshot_path = os.path.join(output_dir, f"{rec_id}_{screenshot_index}.png")
             browser.save_screenshot(screenshot_path)
             img_files.append(screenshot_path)
 
@@ -176,28 +177,6 @@ class SaraminCrawler:
             screenshot_index += 1
 
         return img_files
-
-
-    # def extract_text_from_images(self, model, img_files):
-    #     image_path = "/".join(img_files[0].split("/")[:-2])
-    #     result_folder = image_path + "/results"
-    #     os.makedirs(result_folder, exist_ok=True)
-        
-    #     for img_file in img_files:
-    #         image = load_image(img_file)
-    #         bboxes, polys, score_text = detect(model, 
-    #                                            image, 
-    #                                            text_thres=self.cfg['text_thres'], 
-    #                                            link_thres=self.cfg['link_thres'], 
-    #                                            low_text=self.cfg['low_text'], 
-    #                                            cuda=self.cfg['cuda'],
-    #                                            poly=self.cfg['poly'],
-    #                                            refine_net=self.cfg['refine_net'])
-            
-    #         filename, file_ext = os.path.splitext(os.path.basename(img_file))
-    #         mask_file = result_folder + "/res_" + filename + '_mask.jpg'
-    #         cv2.imwrite(mask_file, score_text)
-    #         saveResult(img_file, image[:,:,::-1], polys, dirname=result_folder)
 
 
     def extract_text_from_images(self, img_files, detector, processor, tokenizer, recognizer):
@@ -249,8 +228,6 @@ class SaraminCrawler:
         return " ".join(all_texts)
 
 
-            
-
     def recruit_post_crawling(self, recruits: List[dict]):
         detector = load_model(self.cfg)
 
@@ -261,13 +238,18 @@ class SaraminCrawler:
         total_data = []
         for recruit in tqdm(recruits, desc="Recruit Post Crawling"):
             url = recruit.get("recruit_url")
+            
             if not url:
                 continue
+            
+            match = re.search(r'rec_idx=(\d+)', url)
+            rec_id = match.group(1) if match else None
 
+            start_time = time.time()
             self.browser.get(url)
             time.sleep(1.5)
 
-            wrap_jv_cont = self.browser.find_element(By.CLASS_NAME, "wrap_jv_cont")
+            wrap_jv_cont = self.browser.find_elements(By.CLASS_NAME, "wrap_jv_cont")[0]
             
             jv_summary = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_summary")
             cont = jv_summary.find_element(By.CLASS_NAME, "cont")
@@ -275,12 +257,22 @@ class SaraminCrawler:
             data = self.column_process(cols)
 
             jv_detail = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_detail")
-            img_files = self.scroll_and_capture(self.browser, jv_detail)
+            try:
+                jv_benefit = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_benefit")
+                cont = jv_benefit.find_element(By.CLASS_NAME, "cont")
+                btn_more_cont = cont.find_element(By.CLASS_NAME, "btn_more_cont")
+                btn_more_cont.click()
+
+            except:
+                pass
+
+            img_files = self.scroll_and_capture(rec_id, self.browser, jv_detail)
             texts = self.extract_text_from_images(img_files, detector, processor, tokenizer, recognizer)
             data.update({"상세 내용" : texts})
 
-            print(data)
             total_data.append(data)
-            break
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            print(f"Recruit ID {rec_id}: Processed in {elapsed_time:.2f} seconds")
 
         return total_data

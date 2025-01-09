@@ -4,3 +4,7 @@ webdriver-manager
 pandas 
 fastapi 
 uvicorn[standard]
+numpy==1.26.4
+opencv-python
+tqdm
+transformers
