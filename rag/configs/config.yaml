@@ -11,3 +11,5 @@ low_text: 0.4
 poly: False
 refine: False
 refine_net: null
+
+temperature: 0

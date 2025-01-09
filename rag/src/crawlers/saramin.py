@@ -25,10 +25,14 @@ from ocr.text_detector.file_utils import saveResult
 from ocr.text_detector.model_utils import load_model
 from ocr.text_detector.image_processor import load_image
 
+from llm.recruit_detail_prompt import make_prompt
+from llm.recruit_detail_process import run_openai_api
+
 
 class SaraminCrawler:
-    def __init__(self, cfg):
+    def __init__(self, cfg, client):
         self.cfg = cfg
+        self.client = client
 
         options = load_options()
         self.browser = webdriver.Chrome(options=options)
@@ -268,7 +272,11 @@ class SaraminCrawler:
 
             img_files = self.scroll_and_capture(rec_id, self.browser, jv_detail)
             texts = self.extract_text_from_images(img_files, detector, processor, tokenizer, recognizer)
-            data.update({"상세 내용" : texts})
+            data.update({"상세 내용(원본)" : texts})
+
+            prompt = make_prompt()
+            new_texts = run_openai_api(self.client, prompt, texts, self.cfg['temperature'])
+            data.update({"상세 내용(llm)" : new_texts})
 
             total_data.append(data)
             end_time = time.time()
