@@ -29,3 +29,8 @@ docker build -t rag_image:latest .
 
 docker run --gpus all --name rag -it -v /home/jake:/home/jake rag_image:latest
 ```
+
+```bash
+apt install -y tesseract-ocr libtesseract-dev tesseract-ocr-kor
+pip install pytesseract easyocr
+```
