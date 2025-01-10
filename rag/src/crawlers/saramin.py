@@ -13,6 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
 
 from transformers import TrOCRProcessor, AutoTokenizer, AutoModelForImageTextToText
 
@@ -25,8 +26,9 @@ from ocr.text_detector.file_utils import saveResult
 from ocr.text_detector.model_utils import load_model
 from ocr.text_detector.image_processor import load_image
 
-from llm.recruit_detail_prompt import make_prompt
-from llm.recruit_detail_process import run_openai_api
+from llm.chatgpt import generate
+from llm.prerpocess import img_preprocessing
+from llm.prompts import recruit_txt_prompt, recruit_img_prompt
 
 
 class SaraminCrawler:
@@ -34,7 +36,7 @@ class SaraminCrawler:
         self.cfg = cfg
         self.client = client
 
-        options = load_options()
+        options = load_options(self.cfg)
         self.browser = webdriver.Chrome(options=options)
         self.region_ids = [
             "depth1_btn_101000", "depth1_btn_102000", "depth1_btn_108000", "depth1_btn_106000", "depth1_btn_104000",
@@ -104,7 +106,7 @@ class SaraminCrawler:
 
                     recruit_list_renew = WebDriverWait(self.browser, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "recruit_list_renew")))
                     default_list_wrap = recruit_list_renew.find_element(By.ID, "default_list_wrap")
-                    page_scroll_down(self.browser, scroll_step=1500)
+                    page_scroll_down(self.browser, scroll_step=self.cfg['scroll_step'])
 
                     list_body = default_list_wrap.find_element(By.CLASS_NAME, "list_body")
                     list_items = list_body.find_elements(By.CLASS_NAME, "list_item")
@@ -118,7 +120,7 @@ class SaraminCrawler:
         return total_recruits
     
 
-    def column_process(self, cols):
+    def column_process(self, cols:List[WebElement]):
         data = {}
         for col in cols:
             dls = col.find_elements(By.TAG_NAME, "dl")
@@ -153,7 +155,8 @@ class SaraminCrawler:
         return data
     
 
-    def scroll_and_capture(self, rec_id, browser, element, output_dir="../imgs"):
+    def scroll_and_capture(self, rec_id, browser, element):
+        output_dir = f"{self.cfg['save_path']}/images"
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
@@ -173,7 +176,7 @@ class SaraminCrawler:
             time.sleep(1)  # 스크롤 후 렌더링 대기
 
             # 스크린샷 저장
-            screenshot_path = os.path.join(output_dir, f"{rec_id}_{screenshot_index}.png")
+            screenshot_path = os.path.join(output_dir, f"{rec_id}_{screenshot_index:>04}.png")
             browser.save_screenshot(screenshot_path)
             img_files.append(screenshot_path)
 
@@ -184,8 +187,7 @@ class SaraminCrawler:
 
 
     def extract_text_from_images(self, img_files, detector, processor, tokenizer, recognizer):
-        image_path = "/".join(img_files[0].split("/")[:-2])
-        result_folder = image_path + "/results"
+        result_folder = f"{self.cfg['save_path']}/results"
         os.makedirs(result_folder, exist_ok=True)
         
         all_texts = []  # 모든 텍스트를 저장할 리스트
@@ -228,26 +230,59 @@ class SaraminCrawler:
             cv2.imwrite(mask_file, score_text)
             saveResult(img_file, image[:, :, ::-1], polys, dirname=result_folder)
 
-        # 추출된 모든 텍스트를 하나로 반환
         return " ".join(all_texts)
 
 
+    def two_stage_ocr(self, img_files, detector, processor, tokenizer, recognizer):
+        texts = self.extract_text_from_images(img_files, detector, processor, tokenizer, recognizer)
+
+        return texts
+    
+
+    def multi_modal_ocr(self, img_files, img_prompt, temperature):
+        texts = []
+        for img_file in img_files:
+            binary_img = img_preprocessing(img_file)
+            text = generate(client=self.client, prompt=img_prompt, input=binary_img, temperature=temperature)
+            texts.append(text)
+        
+        return texts
+
+
     def recruit_post_crawling(self, recruits: List[dict]):
-        detector = load_model(self.cfg)
+        if self.cfg['ocr_method'] == "two_stage":
+            print(f"Method : Two Stage OCR")
+            detector = load_model(self.cfg)
+            processor = TrOCRProcessor.from_pretrained("ddobokki/ko-trocr") 
+            tokenizer = AutoTokenizer.from_pretrained("ddobokki/ko-trocr")
+            recognizer = AutoModelForImageTextToText.from_pretrained("ddobokki/ko-trocr")
+        
+        elif self.cfg['ocr_method'] == "llm":
+            print(f"Method : Large Multi Modal")
+            img_prompt = recruit_img_prompt()
 
-        processor = TrOCRProcessor.from_pretrained("ddobokki/ko-trocr") 
-        tokenizer = AutoTokenizer.from_pretrained("ddobokki/ko-trocr")
-        recognizer = AutoModelForImageTextToText.from_pretrained("ddobokki/ko-trocr")
-
-        total_data = []
-        for recruit in tqdm(recruits, desc="Recruit Post Crawling"):
+        crawling_data = []
+        failed_data = []
+        for idx, recruit in enumerate(recruits):
+            print("=" * 100)
+            print(f"{idx:>07}")
             url = recruit.get("recruit_url")
             
             if not url:
                 continue
             
+            curr_data = {}
             match = re.search(r'rec_idx=(\d+)', url)
             rec_id = match.group(1) if match else None
+            curr_data.update({
+                'id' : rec_id, 
+                "url" : url, 
+                "region" : recruit.get("region"), 
+                "company_name" : recruit.get("company_name"),
+                "title" : recruit.get("recruit_title"), 
+                "metadata" : recruit.get("recruit_meta_data"),
+
+            })
 
             start_time = time.time()
             self.browser.get(url)
@@ -258,29 +293,43 @@ class SaraminCrawler:
             jv_summary = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_summary")
             cont = jv_summary.find_element(By.CLASS_NAME, "cont")
             cols = cont.find_elements(By.CLASS_NAME, "col")
-            data = self.column_process(cols)
+            summary_data = self.column_process(cols)
 
             jv_detail = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_detail")
             try:
+                # jv_benefit 클래스명을 가진 원소 찾기
                 jv_benefit = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_benefit")
                 cont = jv_benefit.find_element(By.CLASS_NAME, "cont")
                 btn_more_cont = cont.find_element(By.CLASS_NAME, "btn_more_cont")
                 btn_more_cont.click()
 
-            except:
+            except NoSuchElementException:
+                # jv_benefit을 찾지 못한 경우 아무 작업도 수행하지 않음
                 pass
 
             img_files = self.scroll_and_capture(rec_id, self.browser, jv_detail)
-            texts = self.extract_text_from_images(img_files, detector, processor, tokenizer, recognizer)
-            data.update({"상세 내용(원본)" : texts})
+            if self.cfg['ocr_method'] == "two_stage":
+                detail_data = self.two_stage_ocr(img_files, detector, processor, tokenizer, recognizer)
+            else:
+                detail_data = self.multi_modal_ocr(img_files, img_prompt, self.cfg['temperature'])
 
-            prompt = make_prompt()
-            new_texts = run_openai_api(self.client, prompt, texts, self.cfg['temperature'])
-            data.update({"상세 내용(llm)" : new_texts})
+            prompt = recruit_txt_prompt()
+            raw_data = ", ".join(f"{key}: {value}" for key, value in summary_data.items()) + detail_data
+            processed_data = generate(self.client, prompt, raw_data, self.cfg['temperature'])
 
-            total_data.append(data)
+            curr_data.update({"recruit_main" : processed_data})
+            crawling_data.append(curr_data)
+
+            if self.cfg['debug']:
+                print(f">>URL\n{url}\n")
+                print(f">>Summary\n{summary_data}\n")
+                print(f">>Detail\n{detail_data}\n")
+                print(f">>Regenerated\n{processed_data}\n")
+            else:
+                print(f">>Saved Data\n{curr_data}\n")
+
             end_time = time.time()
             elapsed_time = end_time - start_time
-            print(f"Recruit ID {rec_id}: Processed in {elapsed_time:.2f} seconds")
+            print(f"Processed in {elapsed_time:.2f} seconds\n\n")
 
-        return total_data
+        return crawling_data, failed_data

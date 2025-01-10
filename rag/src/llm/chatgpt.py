@@ -1,7 +1,4 @@
-import os
-import openai
-
-def run_openai_api(client, prompt, input, temperature):
+def generate(client, prompt, input, temperature):
     completion = client.chat.completions.create(
         model="gpt-4o",
         messages=[

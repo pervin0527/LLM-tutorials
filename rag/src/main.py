@@ -13,18 +13,17 @@ openai_api_key = os.getenv('GRAVY_LAB_OPENAI')
 
 
 def main(cfg):
-    os.makedirs("../data", exist_ok=True)
+    os.makedirs(cfg['save_path'], exist_ok=True)
     client = openai.OpenAI(api_key=openai_api_key)
 
     saramin_crawler = SaraminCrawler(cfg, client)
     # saramin_dataset = saramin_crawler.recruit_list_crawling()
-    # save_to_json(saramin_dataset, "../data/saramin_summary_data.json")
+    # save_to_json(saramin_dataset, f"{cfg['save_path']}/data/saramin_summary_data.json")
 
-    dataset = load_to_json("../data/saramin_summary_data.json")
-    random.shuffle(dataset)
-
-    total_data = saramin_crawler.recruit_post_crawling(dataset[:5])
-    save_to_json(total_data, "../data/saramin_detail_data.json")
+    dataset = load_to_json(f"{cfg['save_path']}/data/saramin_summary_data.json")
+    crawling_data, failed_data = saramin_crawler.recruit_post_crawling(dataset)
+    save_to_json(crawling_data, f"{cfg['save_path']}/data/saramin_detail_data.json")
+    save_to_json(failed_data, f"{cfg['save_path']}/data/failed_detail_data.json")
 
 
 if __name__ == "__main__":
