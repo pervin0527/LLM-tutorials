@@ -288,7 +288,7 @@ class SaraminCrawler:
             self.browser.get(url)
             time.sleep(1.5)
 
-            wrap_jv_cont = self.browser.find_elements(By.CLASS_NAME, "wrap_jv_cont")[0]
+            wrap_jv_cont = self.browser.find_element(By.CLASS_NAME, "wrap_jv_cont")
             
             jv_summary = wrap_jv_cont.find_element(By.CLASS_NAME, "jv_summary")
             cont = jv_summary.find_element(By.CLASS_NAME, "cont")

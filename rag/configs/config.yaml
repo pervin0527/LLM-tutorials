@@ -4,7 +4,7 @@ browser_height: 1440 ## 1280
 save_path: "/home/jake/Datasets"
 
 last_page: 1
-scroll_step: 1500
+scroll_step: 10
 
 ocr_method: "two_stage" ## "two_stage", "llm"
 
@@ -20,3 +20,6 @@ refine_net: null
 
 ## llm params
 temperature: 0
+
+## wanted
+max_job_items: 5
