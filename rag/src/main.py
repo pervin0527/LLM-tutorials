@@ -22,20 +22,24 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 def main():
     cfg = load_config("../configs/config.yaml")
+    logger.info(f"Config Successfully Loaded")
 
     connection = connect_to_db(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT)
-    logger.info(f"DB 연결 성공")
-
+    logger.info(f"DB Connection Successfully Established")
+    
     query = """
         SELECT * 
         FROM recruit
         WHERE platform_type IN ('WANTED');
     """
     dataset = get_dataset(connection, query)
-    logger.info(f"데이터셋 로드 성공: {len(dataset)}")
-
+    logger.info(f"Dataset Successfully Loaded")
     vector_db = VectorDB(cfg, dataset)
-    vector_db.similarity_search_with_score("프론트엔드 개발자 공고 찾아줘.", k=5)
+    results = vector_db.similarity_search_with_score("프론트엔드 개발자 공고 찾아줘.", k=5)
+    
+    results = sorted(results, key=lambda x: x[1], reverse=True)
+    for res, score in results:
+        print(f"* [SIM={score:3f}] {res.page_content} [{res.metadata}]")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@ import os
 import json
 import logging
 
+from datetime import datetime
+
 ## Vector DB
 import faiss
 from langchain_community.vectorstores import FAISS
@@ -25,31 +27,30 @@ class VectorDB:
         self.cfg = cfg
         self.dataset = dataset
 
-        self.embed_model = self.load_embed_model(cfg['embed_model_provider'], cfg['embed_model_name'])
-        logger.info(f"{cfg['embed_model_provider']}/{cfg['embed_model_name']} 로드 성공")
-
+        self.embed_model = self.load_embed_model(cfg['embed_model_provider'], cfg['embed_model_name'], cfg['model_kwargs'], cfg['encode_kwargs'])
         self.documents = self.dataset_to_docs(cfg['page_content_fields'], cfg['metadata_fields'])
-        logger.info(f"Documents 로드 성공: {len(self.documents)}")
 
-        self.vector_db = self.create_vector_db(cfg['index_type'])
-        logger.info(f"Vector DB 생성 완료")
-
-        if self.cfg['index_load_path'] is not None:
-            self.vector_db = self.load_vector_db(self.cfg['index_load_path'], self.embed_model)
-        
-        else:
+        if self.cfg['index_load_path'] is None:
+            self.vector_db = self.create_vector_db(cfg['index_type'])
             self.vector_db.add_documents(self.documents)
             self.save_vector_db(self.cfg['index_save_path'])
+        else:
+            self.vector_db = self.load_vector_db(self.cfg['index_load_path'], self.embed_model)
         
 
-    def load_embed_model(self, embed_model_provider, embed_model_name):
-        if embed_model_provider == "openai":
-            return OpenAIEmbeddings(model=embed_model_name)
-        elif embed_model_provider == "huggingface":
-            return HuggingFaceEmbeddings(model_name=embed_model_name)
-        else:
-            raise ValueError(f"Invalid embed model name: {embed_model_name}")
-        
+    def load_embed_model(self, embed_model_provider, embed_model_name, model_kwargs=None, encode_kwargs=None):
+        try:
+            if embed_model_provider == "openai":
+                embed_model =  OpenAIEmbeddings(model=embed_model_name)
+            elif embed_model_provider == "huggingface":
+                embed_model =  HuggingFaceEmbeddings(model_name=embed_model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs)
+
+            logger.info(f"{embed_model_provider}/{embed_model_name} Successfully Loaded.")
+            return embed_model
+
+        except Exception as e:
+            logger.error(f"Embed Model Load Error: {e}")
+            raise e
 
     def dataset_to_docs(self, page_fields, metadata_fields):
         documents = []
@@ -63,6 +64,8 @@ class VectorDB:
                 metadata[field] = data[field]
                 
             documents.append(Document(page_content=page_content, metadata=metadata, id=uuid4()))
+
+        logger.info(f"Documents Successfully Loaded: {len(documents)}")
 
         return documents
 
@@ -85,16 +88,23 @@ class VectorDB:
             index_to_docstore_id={},
         )
     
+        logger.info(f"Vector DB({index_type}) Successfully Created")
         return vector_db
     
 
     def save_vector_db(self, path):
-        os.makedirs(path, exist_ok=True)
-        self.vector_db.save_local(path)
+        save_path = os.path.join(path, datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
+        os.makedirs(save_path, exist_ok=True)
+        self.vector_db.save_local(save_path)
+
+        logger.info(f"Vector DB Successfully Saved --> {save_path}")
 
 
     def load_vector_db(self, index_path, embed_model):
-        vector_db = FAISS.load_local(index_path, embeddings=embed_model)
+        logger.debug(f"Attempting to load vector DB from path: {index_path}")
+        vector_db = FAISS.load_local(index_path, embeddings=embed_model, allow_dangerous_deserialization=True)
+
+        logger.info(f"{index_path} --> Vector DB Successfully Loaded")
 
         return vector_db
 

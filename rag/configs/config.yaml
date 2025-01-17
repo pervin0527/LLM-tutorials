@@ -1,10 +1,13 @@
-index_save_path: "/home/jake/Datasets/saved_index"
-index_load_path: ## "/home/jake/Datasets/saved_index"
+index_save_path:  null ## "../indexes"
+index_load_path: "/home/pervinco/LLM-tutorials/rag/indexes/2025-01-17-04-43-08"
 
-index_type: "L2"
+index_type: "L2" ## "L2", "IP", "HNSW"
 
-embed_model_provider: "openai"
-embed_model_name: "text-embedding-3-small"
+embed_model_provider: "huggingface" ## "openai", "huggingface"
+embed_model_name: "intfloat/multilingual-e5-large-instruct" ## "text-embedding-3-small"
+
+model_kwargs: {"device" : "cuda"}
+encode_kwargs: {"normalize_embeddings": True}
 
 page_content_fields: ['title', 'description', 'tasks', 'requirements', 'points', 'work_description'] 
 metadata_fields: ['career_type', 'career_min', 'career_max', 'work_type', 'education_type', 'workday_content', 'info_url']
