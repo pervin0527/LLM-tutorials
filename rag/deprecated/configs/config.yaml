@@ -1,0 +1,25 @@
+debug: False
+browser_width: 870 ## 870
+browser_height: 1440 ## 1280
+save_path: "/home/jake/Datasets"
+
+last_page: 1
+scroll_step: 10
+
+ocr_method: "two_stage" ## "two_stage", "llm"
+
+## two-stage params
+cuda: True
+detector_weight: "/home/jake/LLM-tutorials/rag/src/ocr/text_detector/weights/craft_mlt_25k.pth"
+text_thres: 0.7
+link_thres: 0.4
+low_text: 0.4
+poly: False
+refine: False
+refine_net: null
+
+## llm params
+temperature: 0
+
+## wanted
+max_job_items: 5
