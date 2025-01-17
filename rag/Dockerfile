@@ -10,6 +10,7 @@ RUN apt-get update && \
         wget \
         unzip \
         git \
+        default-jdk \
         python3.9 \
         python3.9-dev \
         python3.9-distutils \

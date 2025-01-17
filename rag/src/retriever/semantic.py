@@ -13,22 +13,15 @@ from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_openai import OpenAIEmbeddings
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 
-## Document
-from uuid import uuid4
-from langchain.docstore.document import Document
-
-# HTTPX 로그 비활성화
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
+logging.getLogger("httpx").setLevel(logging.WARNING) # HTTPX 로그 비활성화
 logger = logging.getLogger(__name__)
 
-class VectorDB:
-    def __init__(self, cfg, dataset):
-        self.cfg = cfg
-        self.dataset = dataset
 
+class SemanticRetriever:
+    def __init__(self, cfg, documents):
+        self.cfg = cfg
+        self.documents = documents
         self.embed_model = self.load_embed_model(cfg['embed_model_provider'], cfg['embed_model_name'], cfg['model_kwargs'], cfg['encode_kwargs'])
-        self.documents = self.dataset_to_docs(cfg['page_content_fields'], cfg['metadata_fields'])
 
         if self.cfg['index_load_path'] is None:
             self.vector_db = self.create_vector_db(cfg['index_type'])
@@ -51,23 +44,6 @@ class VectorDB:
         except Exception as e:
             logger.error(f"Embed Model Load Error: {e}")
             raise e
-
-    def dataset_to_docs(self, page_fields, metadata_fields):
-        documents = []
-        for data in self.dataset:
-            page_content = ""
-            for field in page_fields:
-                page_content += f"{field}\n{data[field]}\n\n"
-
-            metadata = {}
-            for field in metadata_fields:
-                metadata[field] = data[field]
-                
-            documents.append(Document(page_content=page_content, metadata=metadata, id=uuid4()))
-
-        logger.info(f"Documents Successfully Loaded: {len(documents)}")
-
-        return documents
 
     
     def create_vector_db(self, index_type):

@@ -9,12 +9,14 @@ requests
 selenium
 webdriver-manager 
 
-easyocr
-pytesseract
-opencv-python
-
 transformers
 huggingface_hub
+
+faiss-cpu
+scikit-learn
+konlpy
+kiwipiepy
+rank-bm25
 
 langchain
 langchain_openai
