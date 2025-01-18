@@ -17,6 +17,7 @@ scikit-learn
 konlpy
 kiwipiepy
 rank-bm25
+streamlit
 
 langchain
 langchain_openai

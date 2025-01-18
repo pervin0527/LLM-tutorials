@@ -29,30 +29,32 @@ def main():
     connection = connect_to_db(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT)
     logger.info(f"DB Connection Successfully Established")
     
-    query = """
+    db_query = """
         SELECT * 
         FROM recruit
         WHERE platform_type IN ('WANTED');
     """
-    dataset = get_dataset(connection, query)[:1000]
+    dataset = get_dataset(connection, db_query)
     documents = get_documents(dataset, cfg['page_content_fields'], cfg['metadata_fields'])
     logger.info(f"Dataset Successfully Loaded")
+
+
+    query = "딥러닝 개발자 채용공고들을 보여줘."
 
     keyword_retriever = BM25Retriever.from_documents(
         documents=documents,
         bm25_params=cfg['bm25_params'],
         tokenizer_method=cfg['tokenizer']
     )
-    query = "프론트엔드"
-    results = keyword_retriever.search_with_score(query, top_k=2)
+    results = keyword_retriever.search_with_score(query, top_k=cfg['topk'])
     for i, (doc, score) in enumerate(results):
-        print(f"[{i + 1}] Score: {score:.4f}\n {doc.page_content}")
+        print(f"[{i + 1}] Score: {score:.4f}\n {doc.page_content}\n\n")
 
-    semantic_retriever = SemanticRetriever(cfg, dataset)
-    results = semantic_retriever.similarity_search_with_score("프론트엔드 개발자 공고 찾아줘.", k=5)
-    results = sorted(results, key=lambda x: x[1], reverse=True)
-    for res, score in results:
-        print(f"* [SIM={score:3f}] {res.page_content} [{res.metadata}]")
+    # semantic_retriever = SemanticRetriever(cfg, dataset)
+    # results = semantic_retriever.similarity_search_with_score(query, k=cfg['topk'])
+    # results = sorted(results, key=lambda x: x[1], reverse=True)
+    # for res, score in results:
+    #     print(f"* [SIM={score:3f}] {res.page_content} [{res.metadata}]")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,11 @@
+topk: 5
+
 index_save_path:  null ## "../indexes"
 index_load_path: "/home/pervinco/LLM-tutorials/rag/indexes/2025-01-17-04-43-08"
 
 tokenize_save_path : "../tokenizers/tokenizer.pkl"
 tokenize_load_path : null ## "/home/pervinco/LLM-tutorials/rag/indexes/2025-01-17-04-43-08/tokenizers/tokenizer.pkl"
+
 bm25_params: {"k1": 1.2, "b": 0.75}
 tokenizer: "kiwi" ## "okt", "mecab", "kkma", "kiwi"
 retriever: "bm25"

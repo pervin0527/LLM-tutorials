@@ -17,6 +17,12 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from kiwipiepy import Kiwi
 from konlpy.tag import Okt, Mecab, Kkma
 
+from concurrent.futures import ThreadPoolExecutor
+
+def parallel_tokenize(texts: List[str], tokenizer: KoreanTokenizer, max_workers: int = 4) -> List[List[str]]:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(tokenizer.tokenize, texts))
+
 
 class KoreanTokenizer:
     def __init__(self, method: str = "kiwi"):
