@@ -23,12 +23,12 @@ class SemanticRetriever:
         self.documents = documents
         self.embed_model = self.load_embed_model(cfg['embed_model_provider'], cfg['embed_model_name'], cfg['model_kwargs'], cfg['encode_kwargs'])
 
-        if self.cfg['index_load_path'] is None:
+        if self.cfg['load_path'] is None:
             self.vector_db = self.create_vector_db(cfg['index_type'])
             self.vector_db.add_documents(self.documents)
-            self.save_vector_db(self.cfg['index_save_path'])
+            self.save_vector_db(self.cfg['save_path'])
         else:
-            self.vector_db = self.load_vector_db(self.cfg['index_load_path'], self.embed_model)
+            self.vector_db = self.load_vector_db(self.cfg['load_path'], self.embed_model)
         
 
     def load_embed_model(self, embed_model_provider, embed_model_name, model_kwargs=None, encode_kwargs=None):
@@ -68,11 +68,8 @@ class SemanticRetriever:
         return vector_db
     
 
-    def save_vector_db(self, path):
-        save_path = os.path.join(path, datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
-        os.makedirs(save_path, exist_ok=True)
+    def save_vector_db(self, save_path):
         self.vector_db.save_local(save_path)
-
         logger.info(f"Vector DB Successfully Saved --> {save_path}")
 
 

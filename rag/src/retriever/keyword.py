@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import os
 import time
+import pickle
 import logging
-logger = logging.getLogger(__name__)
-
 import numpy as np
 
+from pathlib import Path
 from pydantic import Field
-from operator import itemgetter
+from rank_bm25 import BM25Okapi
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from langchain_core.documents import Document
@@ -18,6 +19,10 @@ from kiwipiepy import Kiwi
 from konlpy.tag import Okt, Mecab, Kkma
 
 from concurrent.futures import ThreadPoolExecutor
+
+
+logger = logging.getLogger(__name__)
+
 
 def parallel_tokenize(texts: List[str], tokenizer: KoreanTokenizer, max_workers: int = 4) -> List[List[str]]:
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -55,21 +60,10 @@ class KoreanTokenizer:
 
 
 class BM25Retriever(BaseRetriever):
-    """`BM25` retriever with support for multiple Korean tokenizers."""
-
     vectorizer: Any
-    """ BM25 vectorizer."""
     docs: List[Document] = Field(repr=False)
-    """ List of documents."""
     k: int = 4
-    """ Number of documents to return."""
     preprocess_func: Callable[[str], List[str]]
-    """ Preprocessing function to use on the text before BM25 vectorization."""
-
-    class Config:
-        """Configuration for this pydantic object."""
-
-        arbitrary_types_allowed = True
 
     @classmethod
     def from_texts(
@@ -78,27 +72,29 @@ class BM25Retriever(BaseRetriever):
         metadatas: Optional[Iterable[dict]] = None,
         bm25_params: Optional[Dict[str, Any]] = None,
         tokenizer_method: str = "kiwi",
+        save_path: Optional[str] = None,
+        load_path: Optional[str] = None,
         **kwargs: Any,
     ) -> BM25Retriever:
         """
-        Create a KiwiBM25Retriever from a list of texts.
+        텍스트로부터 BM25Retriever를 생성합니다.
+        
         Args:
-            texts: A list of texts to vectorize.
-            metadatas: A list of metadata dicts to associate with each text.
-            bm25_params: Parameters to pass to the BM25 vectorizer.
-            tokenizer_method: The tokenizer method to use (kiwi, okt, mecab, kkma).
-            **kwargs: Any other arguments to pass to the retriever.
-
-        Returns:
-            A KiwiBM25Retriever instance.
+            texts: 텍스트 목록
+            metadatas: 메타데이터 목록 (옵션)
+            bm25_params: BM25 파라미터 (옵션)
+            tokenizer_method: 토크나이저 방식 (기본값: "kiwi")
+            save_path: 저장할 파일 경로 (옵션)
+            load_path: 로드할 파일 경로 (옵션)
+            **kwargs: 추가 파라미터
         """
-        try:
-            from rank_bm25 import BM25Okapi
-        except ImportError:
-            raise ImportError(
-                "Could not import rank_bm25, please install with `pip install rank_bm25`."
-            )
+        # load_path가 제공되면 저장된 모델을 로드
+        if load_path:
+            load_path = f"{load_path}/{tokenizer_method}.pkl"
+            logger.info(f"Loading BM25Retriever from {load_path}")
+            return cls.load(load_path)
 
+        # 새로운 모델 생성
         tokenizer = KoreanTokenizer(method=tokenizer_method)
         logger.info(f"tokenizer: {tokenizer_method}")
         
@@ -112,7 +108,20 @@ class BM25Retriever(BaseRetriever):
         metadatas = metadatas or ({} for _ in texts)
         docs = [Document(page_content=t, metadata=m) for t, m in zip(texts, metadatas)]
         
-        return cls(vectorizer=vectorizer, docs=docs, preprocess_func=tokenizer.tokenize, **kwargs)
+        instance = cls(
+            vectorizer=vectorizer,
+            docs=docs,
+            k=kwargs.get('k', 4),
+            preprocess_func=tokenizer.tokenize
+        )
+
+        # save_path가 제공되면 모델 저장
+        if save_path:
+            save_path = f"{save_path}/{tokenizer_method}.pkl"
+            instance.save(save_path)
+            logger.info(f"Saved BM25Retriever to {save_path}")
+
+        return instance
 
     @classmethod
     def from_documents(
@@ -121,18 +130,20 @@ class BM25Retriever(BaseRetriever):
         *,
         bm25_params: Optional[Dict[str, Any]] = None,
         tokenizer_method: str = "kiwi",
+        save_path: Optional[str] = None,
+        load_path: Optional[str] = None,
         **kwargs: Any,
     ) -> BM25Retriever:
         """
-        Create a KiwiBM25Retriever from a list of Documents.
+        문서로부터 BM25Retriever를 생성합니다.
+        
         Args:
-            documents: A list of Documents to vectorize.
-            bm25_params: Parameters to pass to the BM25 vectorizer.
-            tokenizer_method: The tokenizer method to use (kiwi, okt, mecab, kkma).
-            **kwargs: Any other arguments to pass to the retriever.
-
-        Returns:
-            A KiwiBM25Retriever instance.
+            documents: Document 객체 목록
+            bm25_params: BM25 파라미터 (옵션)
+            tokenizer_method: 토크나이저 방식 (기본값: "kiwi")
+            save_path: 저장할 파일 경로 (옵션)
+            load_path: 로드할 파일 경로 (옵션)
+            **kwargs: 추가 파라미터
         """
         texts, metadatas = zip(*((d.page_content, d.metadata) for d in documents))
         return cls.from_texts(
@@ -140,6 +151,8 @@ class BM25Retriever(BaseRetriever):
             bm25_params=bm25_params,
             metadatas=metadatas,
             tokenizer_method=tokenizer_method,
+            save_path=save_path,
+            load_path=load_path,
             **kwargs,
         )
 
@@ -176,4 +189,55 @@ class BM25Retriever(BaseRetriever):
             docs_with_scores.append((doc, score))
 
         return docs_with_scores
+    
+    def save(self, file_path: str) -> None:
+        # tokenizer 메서드 이름 추출
+        tokenizer_method = None
+        if hasattr(self.preprocess_func, '__self__'):
+            tokenizer_instance = self.preprocess_func.__self__
+            if isinstance(tokenizer_instance, KoreanTokenizer):
+                for method, func in [
+                    ('kiwi', tokenizer_instance.kiwi_tokenize),
+                    ('okt', tokenizer_instance.okt_tokenize),
+                    ('mecab', tokenizer_instance.mecab_tokenize),
+                    ('kkma', tokenizer_instance.kkma_tokenize)
+                ]:
+                    if self.preprocess_func == func.__get__(tokenizer_instance):
+                        tokenizer_method = method
+                        break
+        
+        if tokenizer_method is None:
+            raise ValueError("Could not determine tokenizer method")
 
+        save_dict = {
+            'vectorizer': self.vectorizer,
+            'docs': self.docs,
+            'k': self.k,
+            'tokenizer_method': tokenizer_method  # tokenizer 대신 메서드 이름만 저장
+        }
+        
+        with open(file_path, 'wb') as f:
+            pickle.dump(save_dict, f)
+        
+        logger.info(f"BM25Retriever saved to {file_path}")
+
+    @classmethod
+    def load(cls, file_path: str) -> 'BM25Retriever':
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        with open(file_path, 'rb') as f:
+            save_dict = pickle.load(f)
+        
+        # 토크나이저 재생성
+        tokenizer = KoreanTokenizer(method=save_dict['tokenizer_method'])
+        
+        instance = cls(
+            vectorizer=save_dict['vectorizer'],
+            docs=save_dict['docs'],
+            k=save_dict['k'],
+            preprocess_func=tokenizer.tokenize
+        )
+        
+        logger.info(f"BM25Retriever loaded from {file_path}")
+        return instance
