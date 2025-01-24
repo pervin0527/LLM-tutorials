@@ -18,14 +18,14 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from kiwipiepy import Kiwi
 from konlpy.tag import Okt, Mecab, Kkma
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 
 logger = logging.getLogger(__name__)
 
 
 def parallel_tokenize(texts: List[str], tokenizer: KoreanTokenizer, max_workers: int = 4) -> List[List[str]]:
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
         return list(executor.map(tokenizer.tokenize, texts))
 
 
@@ -99,7 +99,8 @@ class BM25Retriever(BaseRetriever):
         logger.info(f"tokenizer: {tokenizer_method}")
         
         start_time = time.time()
-        texts_processed = [tokenizer.tokenize(t) for t in texts]
+        # 병렬 처리로 토크나이징
+        texts_processed = parallel_tokenize(texts, tokenizer, max_workers=kwargs.get('max_workers', 4))
         elapsed_time = time.time() - start_time
         logger.info(f"Tokenizing completed in {elapsed_time:.2f} seconds")
 
@@ -174,6 +175,7 @@ class BM25Retriever(BaseRetriever):
         # http://stackoverflow.com/questions/3071415/efficient-method-to-calculate-the-rank-vector-of-a-list-in-python
         return sorted(range(len(seq)), key=seq.__getitem__, reverse=reverse)
 
+    # BM25Retriever에서 점수 계산 후 메타데이터에 추가
     def search_with_score(self, query: str, top_k=None):
         normalized_score = BM25Retriever.softmax(self.vectorizer.get_scores(self.preprocess_func(query)))
 
@@ -186,7 +188,8 @@ class BM25Retriever(BaseRetriever):
         for i in score_indexes[:top_k]:
             doc = self.docs[i]
             score = normalized_score[i]
-            docs_with_scores.append((doc, score))
+            doc.metadata['score'] = score  # 점수를 메타데이터에 추가
+            docs_with_scores.append((doc.page_content, doc.metadata, score))
 
         return docs_with_scores
     

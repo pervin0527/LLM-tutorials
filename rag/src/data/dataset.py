@@ -54,3 +54,19 @@ def get_documents(dataset, page_fields, metadata_fields):
     logger.info(f"Documents Successfully Loaded: {len(documents)}")
 
     return documents
+
+
+def load_documents(cfg, db_info):
+    connection = connect_to_db(db_info['host'], db_info['user'], db_info['password'], db_info['database'], db_info['port'])
+    logger.info(f"DB Connection Successfully Established")
+    
+    db_query = """
+        SELECT * 
+        FROM recruit
+        WHERE platform_type IN ('WANTED');
+    """
+    dataset = get_dataset(connection, db_query)
+    documents = get_documents(dataset, cfg['page_content_fields'], cfg['metadata_fields'])
+    logger.info(f"Dataset Successfully Loaded")
+
+    return documents

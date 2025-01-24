@@ -70,14 +70,14 @@ class SemanticRetriever:
 
     def save_vector_db(self, save_path):
         self.vector_db.save_local(save_path)
-        logger.info(f"Vector DB Successfully Saved --> {save_path}")
+        logger.info(f"Saved Semantic Retriever to {save_path}")
 
 
     def load_vector_db(self, index_path, embed_model):
         logger.debug(f"Attempting to load vector DB from path: {index_path}")
         vector_db = FAISS.load_local(index_path, embeddings=embed_model, allow_dangerous_deserialization=True)
 
-        logger.info(f"{index_path} --> Vector DB Successfully Loaded")
+        logger.info(f"Loading Semantic Retriever from {index_path}")
 
         return vector_db
 
@@ -90,4 +90,10 @@ class SemanticRetriever:
         :param k: The number of top results to return.
         :return: A list of tuples containing the document and its similarity score.
         """
-        return self.vector_db.similarity_search_with_score(query, k=k)
+        results = self.vector_db.similarity_search_with_score(query, k=k)
+        
+        # 점수를 메타데이터에 추가
+        for doc, score in results:
+            doc.metadata['score'] = score
+        
+        return results
