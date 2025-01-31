@@ -39,7 +39,7 @@ def main():
         save_config(cfg, config_file_path)
 
     documents = load_documents(cfg, db_info)
-    semantic_retriever = SemanticRetriever(cfg, documents)
+    semantic_retriever = SemanticRetriever(cfg, documents, OPENAI_API_KEY)
     keyword_retriever = BM25Retriever.from_documents(
         documents=documents,
         bm25_params=cfg['bm25_params'],
@@ -52,7 +52,7 @@ def main():
     dense = semantic_retriever.vector_db.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": cfg['topk'], "score_threshold": 0.5})
     ensemble_retriever = EnsembleRetriever(
         retrievers=[keyword_retriever, dense],
-        weights=[0.4, 0.6],
+        weights=[0.5, 0.5],
         method=EnsembleMethod.CC
     )
 

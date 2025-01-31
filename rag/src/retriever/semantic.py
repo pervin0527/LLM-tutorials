@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class SemanticRetriever:
-    def __init__(self, cfg, documents):
+    def __init__(self, cfg, documents, openai_api_key):
         self.cfg = cfg
+        self.openai_api_key = openai_api_key
         self.documents = documents
         self.embed_model = self.load_embed_model(cfg['embed_model_provider'], cfg['embed_model_name'], cfg['model_kwargs'], cfg['encode_kwargs'])
 
@@ -34,7 +35,7 @@ class SemanticRetriever:
     def load_embed_model(self, embed_model_provider, embed_model_name, model_kwargs=None, encode_kwargs=None):
         try:
             if embed_model_provider == "openai":
-                embed_model =  OpenAIEmbeddings(model=embed_model_name)
+                embed_model =  OpenAIEmbeddings(model=embed_model_name, api_key=self.openai_api_key)
             elif embed_model_provider == "huggingface":
                 embed_model =  HuggingFaceEmbeddings(model_name=embed_model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs)
 
