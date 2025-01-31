@@ -1,12 +1,12 @@
 topk: 5
 
 save_path: "../indexes"
-load_path: "../indexes/2025-01-24-03-16-42"
+load_path: "/home/pervinco/LLM-tutorials/rag/indexes/2025-01-30-23-44-10"
 
 bm25_params: {"k1": 1.2, "b": 0.75}
 tokenizer: "kiwi" ## "okt", "mecab", "kkma", "kiwi"
 
-index_type: "L2" ## "L2", "IP", "HNSW"
+index_type: "IP" ## "L2", "IP", "HNSW"
 embed_model_provider: "huggingface" ## "openai", "huggingface"
 embed_model_name: "intfloat/multilingual-e5-large-instruct" ## "text-embedding-3-small"
 

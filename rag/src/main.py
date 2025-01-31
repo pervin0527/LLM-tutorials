@@ -46,13 +46,13 @@ def main():
         tokenizer_method=cfg['tokenizer'],
         save_path=cfg['save_path'],
         load_path=cfg.get('load_path'),
-        k=cfg.get('k', 4)
+        k=cfg.get('k', 20)
     )
 
-    dense = semantic_retriever.vector_db.as_retriever(search_type="mmr", search_kwargs={"k": 10})
+    dense = semantic_retriever.vector_db.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": cfg['topk'], "score_threshold": 0.5})
     ensemble_retriever = EnsembleRetriever(
         retrievers=[keyword_retriever, dense],
-        weights=[0.5, 0.5],
+        weights=[0.4, 0.6],
         method=EnsembleMethod.CC
     )
 
@@ -61,7 +61,7 @@ def main():
     aligned_text = pdf_text_alignment_v2(client, text)
     query = aligned_text
 
-    keyword_results = keyword_retriever.search_with_score(query, top_k=cfg['topk'])
+    keyword_results = keyword_retriever.search_with_score(query, top_k=cfg['topk'], score_threshold=0.5)
     keyword_ret_result_path = "../data/keyword_ret_result.json"
     with open(keyword_ret_result_path, 'w', encoding='utf-8') as f:
         json.dump(
@@ -94,11 +94,6 @@ def main():
         )
     logger.info(f"Semantic Retriever results saved to {semantic_ret_result_path}")
     
-    print("Ensemble Retriever Results:")
-    ensemble_results = ensemble_retriever.invoke(query)
-    for result in ensemble_results:
-        print(result.metadata['score'], result)
-
     ensemble_results = ensemble_retriever.invoke(query)
     ensemble_ret_result_path = "../data/ensemble_ret_result.json"
     with open(ensemble_ret_result_path, 'w', encoding='utf-8') as f:

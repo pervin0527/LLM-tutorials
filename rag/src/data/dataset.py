@@ -43,7 +43,8 @@ def get_documents(dataset, page_fields, metadata_fields):
     for data in dataset:
         page_content = ""
         for field in page_fields:
-            page_content += f"{field}\n{data[field]}\n\n"
+            # page_content += f"{field}\n{data[field]}\n\n"
+            page_content += f"{data[field]}\n\n"
 
         metadata = {}
         for field in metadata_fields:

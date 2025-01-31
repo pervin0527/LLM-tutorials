@@ -1,86 +1,115 @@
 import streamlit as st
 import os
+import json
+import logging
+from openai import OpenAI
+from dotenv import load_dotenv
+from datetime import datetime
+
+from utils.db_config import get_db_info
 from utils.config import load_config
-from data.dataset import connect_to_db, get_dataset, get_documents
+from data.dataset import load_documents
+from parser.pdf_text_extract import extract_text_with_pymupdf, pdf_text_alignment_v2
 from retriever.keyword import BM25Retriever
 from retriever.semantic import SemanticRetriever
+from retriever.ensemble import EnsembleRetriever, EnsembleMethod
 
-from dotenv import load_dotenv
+# 환경 변수 로드
 load_dotenv("../keys.env")
+OPENAI_API_KEY = os.getenv("GRAVY_LAB_OPENAI")
 
-# Load environment variables
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-DB_HOST = os.getenv("DB_HOST")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
-DB_PORT = os.getenv("DB_PORT")
+# 로깅 설정
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Streamlit 설정
+st.set_page_config(page_title="RAG demo", layout="wide")
 
 def main():
-    # Load configuration and initialize database connection
-    cfg = load_config("../configs/config.yaml")
-    connection = connect_to_db(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT)
-
-    # Fetch dataset and prepare documents
-    query = """
-        SELECT * 
-        FROM recruit
-        WHERE platform_type IN ('WANTED');
-    """
-    dataset = get_dataset(connection, query)
-    documents = get_documents(dataset, cfg['page_content_fields'], cfg['metadata_fields'])
-
-    # Initialize retrievers
-    keyword_retriever = BM25Retriever.from_documents(
-        documents=documents,
-        bm25_params=cfg['bm25_params'],
-        tokenizer_method=cfg['tokenizer']
-    )
-    semantic_retriever = SemanticRetriever(cfg, dataset)
-
-    # Streamlit UI
-    st.title("Document Search App")
-
-    # Sidebar configuration
-    with st.sidebar:
-        st.header("Search Configuration")
-        search_type = st.radio("Choose retrieval method", ["Keyword", "Embedding"], index=0)
-        top_k = st.slider("Select Top-K results", 1, 10, 5)
-
-    # Search interface
-    search_query_container = st.container()
-    with search_query_container:
-        st.header("Search")
-        query = st.text_input("Enter your query:", placeholder="Type your query here...")
-        search_button = st.button("Search")
-
-    # Results display
-    if search_button and query:
-        if search_type == "Keyword":
-            results = keyword_retriever.search_with_score(query, top_k=top_k)
-        else:
-            results = semantic_retriever.similarity_search_with_score(query, k=top_k)
-            results = sorted(results, key=lambda x: x[1], reverse=True)
-
-        if results:
-            current_result_index = st.session_state.get("current_result_index", 0)
-
-            # Navigation buttons
-            with st.container():
-                col1, col2, col3 = st.columns([1, 4, 1])
-                if col1.button("⬅️ Previous"):
-                    current_result_index = max(0, current_result_index - 1)
-                    st.session_state["current_result_index"] = current_result_index
-
-                col3.button("Next ➡️", key="next_button", on_click=lambda: st.session_state.update({"current_result_index": min(len(results) - 1, current_result_index + 1)}))
-
-            # Display current result
-            doc, score = results[current_result_index]
-            with st.container():
-                st.subheader(f"Result {current_result_index + 1} of {len(results)}")
-                st.write(f"**Similarity Score:** {score:.4f}")
-                st.write(f"**Content:** {doc.page_content}")
-                st.write(f"**Metadata:** {doc.metadata}")
+    st.title("RAG demo")
+    st.sidebar.header("파일 업로드")
+    
+    # PDF 파일 업로드
+    uploaded_file = st.sidebar.file_uploader("PDF 파일을 업로드하세요", type="pdf")
+    
+    if uploaded_file is not None:
+        logger.info("파일 업로드 완료")
+        
+        cfg = load_config("../configs/config.yaml")
+        logger.info("설정 로드 완료")
+        
+        db_info = get_db_info()
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        # 문서 로드
+        documents = load_documents(cfg, db_info)
+        logger.info("문서 로드 완료")
+        
+        # 검색기 초기화
+        semantic_retriever = SemanticRetriever(cfg, documents)
+        keyword_retriever = BM25Retriever.from_documents(
+            documents=documents,
+            bm25_params=cfg['bm25_params'],
+            tokenizer_method=cfg['tokenizer'],
+            save_path=cfg['save_path'],
+            load_path=cfg.get('load_path'),
+            k=cfg.get('k', 20)
+        )
+        logger.info("검색기 초기화 완료")
+        
+        dense = semantic_retriever.vector_db.as_retriever(search_type="mmr", search_kwargs={"k": cfg['topk']})
+        ensemble_retriever = EnsembleRetriever(
+            retrievers=[keyword_retriever, dense],
+            weights=[0.4, 0.6],
+            method=EnsembleMethod.CC
+        )
+        
+        # 텍스트 추출 및 정렬
+        with st.spinner("텍스트를 추출하고 정렬 중입니다..."):
+            text = extract_text_with_pymupdf("../data/sample.pdf")
+            logger.info("텍스트 추출 완료")
+            
+            aligned_text = pdf_text_alignment_v2(client, text)
+            logger.info("텍스트 정렬 완료")
+        
+        query = aligned_text
+        
+        # 페이지를 두 개의 열로 나누기
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("추출 및 정렬된 텍스트")
+            st.text_area("텍스트 내용", query, height=600)
+        
+        with col2:
+            # 키워드 검색 결과
+            st.subheader("Keyword 기반 검색")
+            keyword_results = keyword_retriever.search_with_score(query, top_k=cfg['topk'])
+            logger.info("키워드 검색 완료")
+            
+            for idx, (content, metadata, score) in enumerate(keyword_results):
+                if score >= 0.5:
+                    st.text_area(f"Keyword 검색 결과 {idx+1}", f"Score: {score:.2f}\nContent: {content}", height=200)
+            
+            # 시맨틱 검색 결과
+            st.subheader("Semantic 기반 결과")
+            semantic_results = semantic_retriever.similarity_search_with_score(query, k=cfg['topk'])
+            semantic_results = sorted(semantic_results, key=lambda x: x[1], reverse=True)
+            logger.info("시맨틱 검색 완료")
+            
+            for idx, (res, score) in enumerate(semantic_results):
+                if score >= 0.5:
+                    st.text_area(f"Semantic 검색 결과 {idx+1}", f"Score: {score:.2f}\nContent: {res.page_content}", height=200)
+            
+            # 앙상블 검색 결과
+            st.subheader("Hybrid 검색 결과")
+            ensemble_results = ensemble_retriever.invoke(query)
+            logger.info("앙상블 검색 완료")
+            
+            for idx, result in enumerate(ensemble_results):
+                score = result.metadata.get('score')
+                if score is not None and score >= 0.5:
+                    st.text_area(f"Hybrid 검색 결과 {idx+1}", f"Score: {score:.2f}\nContent: {result.page_content}", height=200)
 
 if __name__ == "__main__":
-    main()
+    main() 

@@ -18,14 +18,14 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from kiwipiepy import Kiwi
 from konlpy.tag import Okt, Mecab, Kkma
 
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 
 logger = logging.getLogger(__name__)
 
 
 def parallel_tokenize(texts: List[str], tokenizer: KoreanTokenizer, max_workers: int = 4) -> List[List[str]]:
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         return list(executor.map(tokenizer.tokenize, texts))
 
 
@@ -176,20 +176,24 @@ class BM25Retriever(BaseRetriever):
         return sorted(range(len(seq)), key=seq.__getitem__, reverse=reverse)
 
     # BM25Retriever에서 점수 계산 후 메타데이터에 추가
-    def search_with_score(self, query: str, top_k=None):
+    def search_with_score(self, query: str, top_k=None, score_threshold=None):
         normalized_score = BM25Retriever.softmax(self.vectorizer.get_scores(self.preprocess_func(query)))
 
         if top_k is None:
             top_k = self.k
 
+        if score_threshold is None:
+            score_threshold = 0.5
+
         score_indexes = BM25Retriever.argsort(normalized_score, True)
 
-        docs_with_scores = []
+        docs_with_scores = []   
         for i in score_indexes[:top_k]:
             doc = self.docs[i]
             score = normalized_score[i]
-            doc.metadata['score'] = score  # 점수를 메타데이터에 추가
-            docs_with_scores.append((doc.page_content, doc.metadata, score))
+            if score >= score_threshold:
+                doc.metadata['score'] = score  # 점수를 메타데이터에 추가
+                docs_with_scores.append((doc.page_content, doc.metadata, score))
 
         return docs_with_scores
     
