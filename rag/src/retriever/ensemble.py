@@ -34,6 +34,8 @@ from langchain_core.runnables.utils import (
 from pydantic import model_validator
 from enum import Enum
 
+import logging
+logger = logging.getLogger(__name__)
 T = TypeVar("T")
 H = TypeVar("H", bound=Hashable)
 
@@ -45,11 +47,9 @@ class EnsembleMethod(str, Enum):
 
 def unique_by_key(iterable: Iterable[T], key: Callable[[T], H]) -> Iterator[T]:
     """Yield unique elements of an iterable based on a key function.
-
     Args:
         iterable: The iterable to filter.
         key: A function that returns a hashable key for each element.
-
     Yields:
         Unique elements of the iterable based on the key function.
     """
@@ -62,9 +62,7 @@ def unique_by_key(iterable: Iterable[T], key: Callable[[T], H]) -> Iterator[T]:
 
 class EnsembleRetriever(BaseRetriever):
     """Retriever that ensembles the multiple retrievers.
-
     It uses either Reciprocal Rank Fusion (RRF) or Convex Combination (CC) method.
-
     Args:
         retrievers: A list of retrievers to ensemble.
         weights: A list of weights corresponding to the retrievers.
@@ -178,10 +176,8 @@ class EnsembleRetriever(BaseRetriever):
     ) -> List[Document]:
         """
         Get the relevant documents for a given query.
-
         Args:
             query: The query to search for.
-
         Returns:
             A list of reranked documents.
         """
@@ -199,10 +195,8 @@ class EnsembleRetriever(BaseRetriever):
     ) -> List[Document]:
         """
         Asynchronously get the relevant documents for a given query.
-
         Args:
             query: The query to search for.
-
         Returns:
             A list of reranked documents.
         """
@@ -215,10 +209,8 @@ class EnsembleRetriever(BaseRetriever):
     def ensemble_results(self, doc_lists: List[List[Document]]) -> List[Document]:
         """
         Ensemble the results using either RRF or CC method.
-
         Args:
             doc_lists: A list of rank lists, where each rank list contains unique items.
-
         Returns:
             list: The final aggregated list of items sorted by their scores in descending order.
         """
@@ -237,8 +229,11 @@ class EnsembleRetriever(BaseRetriever):
     def reciprocal_rank_fusion(self, doc_lists: List[List[Document]]) -> List[Document]:
         """
         Perform Reciprocal Rank Fusion on multiple rank lists.
+        params
+            - doc_lists : 각각의 retriever가 반환한 문서 리스트의 리스트
         """
         rrf_score: Dict[str, float] = defaultdict(float)
+        doc_map: Dict[str, Document] = {}
         for doc_list, weight in zip(doc_lists, self.weights):
             for rank, doc in enumerate(doc_list, start=1):
                 doc_id = (
@@ -247,32 +242,30 @@ class EnsembleRetriever(BaseRetriever):
                     else doc.metadata[self.id_key]
                 )
                 rrf_score[doc_id] += weight / (rank + self.c)
+                doc_map[doc_id] = doc
 
-        all_docs = chain.from_iterable(doc_lists)
         sorted_docs = sorted(
-            unique_by_key(
-                all_docs,
-                lambda doc: (
-                    doc.page_content
-                    if self.id_key is None
-                    else doc.metadata[self.id_key]
-                ),
-            ),
-            key=lambda doc: rrf_score[
-                doc.page_content if self.id_key is None else doc.metadata[self.id_key]
-            ],
+            doc_map.keys(),
+            key=lambda doc_id: rrf_score[doc_id],
             reverse=True,
         )
-        return sorted_docs
+        # 점수를 메타데이터에 추가
+        for doc_id in sorted_docs:
+            doc_map[doc_id].metadata['score'] = rrf_score[doc_id]
+        return [doc_map[doc_id] for doc_id in sorted_docs]
 
     def convex_combination(self, doc_lists: List[List[Document]]) -> List[Document]:
         """
         Perform Convex Combination on multiple rank lists.
         """
         cc_scores: Dict[str, float] = defaultdict(float)
+        doc_map: Dict[str, Document] = {}
 
         for doc_list, weight in zip(doc_lists, self.weights):
-            max_score = max(doc.metadata.get("score", 0) for doc in doc_list) or 1
+            max_score = max((doc.metadata.get("score", 0) for doc in doc_list), default=1)
+            if max_score == 0:
+                logger.warning("All scores are 0. Setting max_score to 1.")
+                max_score = 1
             for doc in doc_list:
                 doc_id = (
                     doc.page_content
@@ -281,27 +274,19 @@ class EnsembleRetriever(BaseRetriever):
                 )
                 normalized_score = doc.metadata.get("score", 0) / max_score
                 cc_scores[doc_id] += weight * normalized_score
-
-        all_docs = list(
-            unique_by_key(
-                chain.from_iterable(doc_lists),
-                lambda doc: (
-                    doc.page_content
-                    if self.id_key is None
-                    else doc.metadata[self.id_key]
-                ),
-            )
-        )
+                doc_map[doc_id] = doc
+                logger.debug(f"Doc ID: {doc_id}, Score: {doc.metadata.get('score', 0)}, Normalized Score: {normalized_score}")
 
         sorted_docs = sorted(
-            all_docs,
-            key=lambda doc: cc_scores[
-                doc.page_content if self.id_key is None else doc.metadata[self.id_key]
-            ],
+            doc_map.keys(),
+            key=lambda doc_id: cc_scores[doc_id],
             reverse=True,
         )
 
-        return sorted_docs
+        for doc_id in sorted_docs:
+            doc_map[doc_id].metadata['score'] = cc_scores[doc_id]
+            logger.debug(f"Final Score for Doc ID {doc_id}: {cc_scores[doc_id]}")
+        return [doc_map[doc_id] for doc_id in sorted_docs]
 
     def rank_fusion(
         self,
@@ -362,5 +347,3 @@ class EnsembleRetriever(BaseRetriever):
 
         # apply ensemble method
         fused_documents = self.ensemble_results(retriever_docs)
-
-        return fused_documents
