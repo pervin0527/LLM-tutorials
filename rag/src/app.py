@@ -74,15 +74,11 @@ def main():
         
         query = aligned_text
         
-        # 페이지를 두 개의 열로 나누기
-        col1, col2 = st.columns(2)
+        st.subheader("추출 및 정렬된 텍스트")
+        st.text_area("텍스트 내용", query, height=600)
         
-        with col1:
-            st.subheader("추출 및 정렬된 텍스트")
-            st.text_area("텍스트 내용", query, height=600)
-        
-        with col2:
-            # 키워드 검색 결과
+        # 키워드 검색 결과
+        with st.spinner("키워드 검색 중입니다..."):
             st.subheader("Keyword 기반 검색")
             keyword_results = keyword_retriever.search_with_score(query, top_k=cfg['topk'])
             logger.info("키워드 검색 완료")
@@ -90,8 +86,9 @@ def main():
             for idx, (content, metadata, score) in enumerate(keyword_results):
                 if score >= 0.5:
                     st.text_area(f"Keyword 검색 결과 {idx+1}", f"Score: {score:.2f}\nContent: {content}", height=200)
-            
-            # 시맨틱 검색 결과
+        
+        # 시맨틱 검색 결과
+        with st.spinner("시맨틱 검색 중입니다..."):
             st.subheader("Semantic 기반 결과")
             semantic_results = semantic_retriever.similarity_search_with_score(query, k=cfg['topk'])
             semantic_results = sorted(semantic_results, key=lambda x: x[1], reverse=True)
@@ -100,8 +97,9 @@ def main():
             for idx, (res, score) in enumerate(semantic_results):
                 if score >= 0.5:
                     st.text_area(f"Semantic 검색 결과 {idx+1}", f"Score: {score:.2f}\nContent: {res.page_content}", height=200)
-            
-            # 앙상블 검색 결과
+        
+        # 앙상블 검색 결과
+        with st.spinner("앙상블 검색 중입니다..."):
             st.subheader("Hybrid 검색 결과")
             ensemble_results = ensemble_retriever.invoke(query)
             logger.info("앙상블 검색 완료")
