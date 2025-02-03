@@ -1,14 +1,14 @@
 topk: 5
 
 save_path: "../indexes"
-load_path: null ##"/home/pervinco/LLM-tutorials/rag/indexes/2025-01-30-23-44-10"
+load_path: "/home/pervinco/LLM-tutorials/rag/indexes/2025-01-31-06-14-16"
 
 bm25_params: {"k1": 1.2, "b": 0.75}
 tokenizer: "kiwi" ## "okt", "mecab", "kkma", "kiwi"
 
 index_type: "IP" ## "L2", "IP", "HNSW"
-embed_model_provider: "openai" ## "openai", "huggingface"
-embed_model_name: "text-embedding-3-small" ## "intfloat/multilingual-e5-large-instruct"
+embed_model_provider: "huggingface" ## "openai", "huggingface"
+embed_model_name: "intfloat/multilingual-e5-large-instruct" ## "intfloat/multilingual-e5-large-instruct"
 
 model_kwargs: {"device" : "cuda"}
 encode_kwargs: {"normalize_embeddings": True}
