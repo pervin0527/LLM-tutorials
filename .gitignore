@@ -22,3 +22,5 @@ beomi_Llama-3-Open-Ko-8B-Bingsu_ko_alpaca_data-QDoRA/
 indexes/
 
 sample.pdf
+
+test/data/*.json
