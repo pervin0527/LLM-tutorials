@@ -11,6 +11,7 @@ openai
 anthropic
 
 faiss-cpu
+elasticsearch
 
 langchain
 langchain-core
@@ -18,3 +19,4 @@ langchain-openai
 langchain-upstage
 langchain-community
 langchain-huggingface
+langchain-elasticsearch
