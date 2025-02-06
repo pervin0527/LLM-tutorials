@@ -1,6 +1,6 @@
-import os
-import json
 import time
+import logging
+
 from collections import deque
 from urllib.parse import urljoin, urlparse
 
@@ -13,6 +13,9 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from webdriver_manager.chrome import ChromeDriverManager
 
+BLOCK_FILE_EXT = {".pdf", ".zip", ".exe", ".rar", ".tar.gz", ".dmg", ".jpg", ".png", ".hwp"}
+
+logger = logging.getLogger(__name__)
 
 def set_webdriver(root_url):
     options = Options()
@@ -58,16 +61,17 @@ def get_page_content(driver, url):
         content = driver.find_element(By.TAG_NAME, "body").text.strip()
         return content
     except Exception as e:
-        print(f"페이지 로드 오류: {e} (URL: {url})")
+        logger.error(f"페이지 로드 오류: {e} (URL: {url})")
         return ""
 
 
 def process_links(driver, current_url, start_url, visited):
     """
     현재 페이지에서 <a> 태그의 링크를 찾아, 내부 도메인 링크 중 아직 방문하지 않은 URL을 반환합니다.
-    URL은 scheme, netloc, path만을 이용하여 정리합니다.
+    특정 파일 확장자 (*.pdf, *.zip 등) 링크는 제외합니다.
     """
     links_to_visit = []
+
     try:
         links = driver.find_elements(By.TAG_NAME, "a")
         for link in links:
@@ -76,12 +80,19 @@ def process_links(driver, current_url, start_url, visited):
                 absolute_url = urljoin(current_url, href)
                 parsed_url = urlparse(absolute_url)
                 clean_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+
+                # 특정 파일 확장자가 포함된 URL 필터링
+                if any(clean_url.lower().endswith(ext) for ext in BLOCK_FILE_EXT):
+                    logger.info(f"차단된 파일 URL: {clean_url}")
+                    continue
+
                 # 도메인이 같고, 아직 방문하지 않은 URL만 추가
                 if parsed_url.netloc == urlparse(start_url).netloc and clean_url not in visited:
                     visited.add(clean_url)
                     links_to_visit.append(clean_url)
     except Exception as e:
-        print(f"링크 처리 오류: {e} (URL: {current_url})")
+        logger.error(f"링크 처리 오류: {e} (URL: {current_url})")
+    
     return links_to_visit
 
 
