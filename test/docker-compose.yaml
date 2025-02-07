@@ -1,0 +1,23 @@
+version: '3'
+services:
+  mongodb:
+    image: mongo:4.4.29
+    container_name: local-mongodb
+    restart: always
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ai
+      MONGO_INITDB_ROOT_PASSWORD: glab0110!!
+      TZ: Asia/Seoul
+    volumes:
+      - ./mongodb-data:/data/db
+      - ./mongo_dump:/storage/mongo_dump
+    command: ["--auth"]
+
+  culture_backend:
+    restart: always
+    image: repo.pocketjob.co.kr/culture_backend:latest
+    ports:
+      - "9997:9997"
+    command: ["streamlit", "run", "src/main.py", "--server.address", "0.0.0.0", "--server.port", "9997"]

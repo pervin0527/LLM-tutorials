@@ -1,0 +1,14 @@
+numpy
+pandas
+pymongo
+streamlit
+beautifulsoup4
+
+selenium
+webdriver-manager
+
+openai
+anthropic
+
+faiss-cpu
+elasticsearch
