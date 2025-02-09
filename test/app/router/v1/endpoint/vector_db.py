@@ -120,13 +120,13 @@ def delete_document_api(request: Request, company_name: str, url: str):
 
 
 @router.get("/vector_db/similarity_search_with_score")
-def similarity_search_with_score_api(request: Request, query: str, company_name: str = Query(None)):
+def similarity_search_with_score_api(request: Request, query: str):
     """
     주어진 쿼리와 회사명에 따라 유사도 점수를 기반으로 문서를 검색하는 API.
     """
     try:
         vector_store = request.app.state.vector_store
-        results = vector_store.similarity_search_with_score(query, company_name)
+        results = vector_store.similarity_search_with_score(query)
         
         return {"success": True, "data": results}
     
@@ -136,13 +136,13 @@ def similarity_search_with_score_api(request: Request, query: str, company_name:
 
 
 @router.get("/vector_db/similarity_search_with_relevance_scores")
-def similarity_search_with_relevance_scores_api(request: Request, query: str, company_name: str = Query(None)):
+def similarity_search_with_relevance_scores_api(request: Request, query: str):
     """
     주어진 쿼리와 회사명에 따라 관련성 점수를 기반으로 문서를 검색하는 API.
     """
     try:
         vector_store = request.app.state.vector_store
-        results = vector_store.similarity_search_with_relevance_scores(query, company_name)
+        results = vector_store.similarity_search_with_relevance_scores(query)
         
         return {"success": True, "data": results}
     

@@ -214,19 +214,24 @@ class VectorStore:
         return False
     
 
-    def similarity_search_with_score(self, query, company_name=None):
-        return self.vector_db.similarity_search_with_score(
-            query,
-            k=self.cfg['top_k'],
-            filter=lambda doc: doc.metadata.get("company_name") == company_name,
-            fetch_k=self.cfg['top_k']*2
-        )
-    
+    def similarity_search_with_score(self, query):
+        k = int(self.cfg.get('top_k', 10))
+        fetch_k = k * 2
 
-    def similarity_search_with_relevance_scores(self, query, company_name=None):
-        return self.vector_db.similarity_search_with_relevance_scores(
-            query,
-            k=self.cfg['top_k'],
-            filter=lambda doc: doc.metadata.get("company_name") == company_name,
-            fetch_k=self.cfg['top_k']*2            
-        )
+        results = self.vector_db.similarity_search_with_score(query, k=k)
+
+        # numpy.float32 → float 변환
+        results = [(doc, float(score)) for doc, score in results]
+
+        return results
+        
+    def similarity_search_with_relevance_scores(self, query):
+        k = int(self.cfg.get('top_k', 10))
+        fetch_k = k * 2
+
+        results = self.vector_db.similarity_search_with_relevance_scores(query, k=k)
+
+        # numpy.float32 → float 변환
+        results = [(doc, float(score)) for doc, score in results]
+
+        return results
