@@ -1,73 +1,16 @@
 import time
-<<<<<<< HEAD
-=======
-import logging
->>>>>>> 8832e2a0ea93d59ccb0cb35353e02402ede3f2e0
 
 from collections import deque
 from urllib.parse import urljoin, urlparse
 
-from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from webdriver_manager.chrome import ChromeDriverManager
-
-<<<<<<< HEAD
 from app.utils.logging import logger
+from src.crawler.utils import set_webdriver
 
 BLOCK_FILE_EXT = {".pdf", ".zip", ".exe", ".rar", ".tar.gz", ".dmg", ".jpg", ".png", ".hwp", ".doc", ".xlsx", ".pptx", ".ppt", ".docx", ".txt"}
-
-=======
-BLOCK_FILE_EXT = {".pdf", ".zip", ".exe", ".rar", ".tar.gz", ".dmg", ".jpg", ".png", ".hwp"}
-
-logger = logging.getLogger(__name__)
->>>>>>> 8832e2a0ea93d59ccb0cb35353e02402ede3f2e0
-
-def set_webdriver(root_url):
-    logger.info(f"웹드라이버 설정 시작: {root_url}")
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    
-    # 추가적인 헤더 설정
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_experimental_option('excludeSwitches', ['enable-automation'])
-    options.add_experimental_option('useAutomationExtension', False)
-    
-    # 더 현실적인 user-agent 설정
-    user_agent = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/120.0.0.0 Safari/537.36")
-    options.add_argument(f'user-agent={user_agent}')
-    
-    # 추가 헤더 설정
-    options.add_argument('accept=text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
-    options.add_argument('accept-language=ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7')
-    
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    
-    # 웹드라이버 감지 방지를 위한 JavaScript 실행
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': '''
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            })
-        '''
-    })
-    
-    # 페이지 로딩 대기 시간 증가
-    driver.get(root_url)
-    time.sleep(3)  # 0.5초에서 3초로 증가
-    
-    logger.info("웹드라이버 설정 완료")
-    return driver
 
 
 def initialize_crawler(start_url):
@@ -91,23 +34,12 @@ def get_page_content(driver, url):
         logger.info(f"페이지 로드 완료: {url}")
         return content
     except Exception as e:
-<<<<<<< HEAD
         logger.error(f"URL: {url} 페이지 오류: {e}")
-=======
-        logger.error(f"페이지 로드 오류: {e} (URL: {url})")
->>>>>>> 8832e2a0ea93d59ccb0cb35353e02402ede3f2e0
         return ""
 
 
 def process_links(driver, current_url, start_url, visited):
-<<<<<<< HEAD
     logger.info(f"링크 처리 시작: {current_url}")
-=======
-    """
-    현재 페이지에서 <a> 태그의 링크를 찾아, 내부 도메인 링크 중 아직 방문하지 않은 URL을 반환합니다.
-    특정 파일 확장자 (*.pdf, *.zip 등) 링크는 제외합니다.
-    """
->>>>>>> 8832e2a0ea93d59ccb0cb35353e02402ede3f2e0
     links_to_visit = []
 
     try:
@@ -132,10 +64,7 @@ def process_links(driver, current_url, start_url, visited):
     except Exception as e:
         logger.error(f"링크 처리 오류: {e} (URL: {current_url})")
     
-<<<<<<< HEAD
     logger.info(f"링크 처리 완료: {current_url}, 발견된 링크 수: {len(links_to_visit)}")
-=======
->>>>>>> 8832e2a0ea93d59ccb0cb35353e02402ede3f2e0
     return links_to_visit
 
 

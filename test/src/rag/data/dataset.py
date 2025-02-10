@@ -6,7 +6,7 @@ from src.db.mongo import connect_to_mongo
 from src.crud.company import get_all_companies
 
 def load_documents_from_db():
-    collection = connect_to_mongo()
+    collection = connect_to_mongo("culture_db", "company_websites")
     if collection is None:
         logger.warning("MongoDB collection is None.")
         return []

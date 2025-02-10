@@ -6,12 +6,12 @@ from pymongo import MongoClient
 from app.utils.logging import logger
 
 
-def connect_to_mongo():
+def connect_to_mongo(db_name,collection_name):
     """MongoDB 연결"""
     try:
         client = MongoClient("mongodb://ai:glab0110!!@local-mongodb:27017/?authSource=admin")
-        db = client["culture_db"]
-        collection = db["company_websites"]
+        db = client[db_name]
+        collection = db[collection_name]
         logger.info("✅ MongoDB 연결 성공")
         return collection
     except Exception as e:

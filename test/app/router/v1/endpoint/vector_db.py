@@ -2,6 +2,8 @@ import logging
 from fastapi import APIRouter, HTTPException, Request, Query, Body
 
 from src.db.mongo import connect_to_mongo
+from src.crud.company import delete_company
+from src.crud.page import update_page_content, delete_page
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,12 @@ def delete_company_api(request: Request, company_name: str):
     try:
         vector_store = request.app.state.vector_store
         success = vector_store.delete_company(company_name)
+
+        collection = connect_to_mongo("culture_db", "company_websites")
+        if collection is None:
+            return {"success": False, "message": "MongoDB 연결 실패"}
+        
+        delete_company(collection, company_name)
         
         if success:
             return {"success": True, "message": f"'{company_name}' 회사의 문서가 삭제되었습니다."}
@@ -82,18 +90,19 @@ def search_document_api(request: Request, company_name: str, url: str):
 
 
 @router.put("/vector_db/update_document")
-def update_document_api(request: Request, company_name: str, url: str, new_text: str = Query(None), new_url: str = Query(None)):
+def update_document_api(request: Request, company_name: str, url: str, new_url: str = Query(None), new_text: str = Query(None)):
     """
     주어진 회사명과 URL에 해당하는 문서를 업데이트하는 API.
     """
     try:
-        vector_store = request.app.state.vector_store
-        updated_document = vector_store.update_document(company_name, url, new_text, new_url)
+        collection = connect_to_mongo("culture_db", "company_websites")
+        if collection is None:
+            return {"success": False, "message": "MongoDB 연결 실패"}
         
-        if updated_document:
-            return {"success": True, "data": updated_document}
-        else:
-            return {"success": False, "message": f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서를 찾을 수 없습니다."}
+        vector_store = request.app.state.vector_store
+        update_page_content(collection, vector_store, company_name, url, new_url, new_text)
+        
+        return {"success": True, "message": "문서 업데이트 성공"}
     
     except Exception as e:
         logger.error(f"문서 업데이트 중 오류 발생: {str(e)}")
@@ -106,13 +115,14 @@ def delete_document_api(request: Request, company_name: str, url: str):
     주어진 회사명과 URL에 해당하는 문서를 벡터 데이터베이스에서 삭제하는 API.
     """
     try:
+        collection = connect_to_mongo("culture_db", "company_websites")
+        if collection is None:
+            return {"success": False, "message": "MongoDB 연결 실패"}
+
         vector_store = request.app.state.vector_store
-        success = vector_store.delete_document(company_name, url)
+        delete_page(collection, vector_store, company_name, url)
         
-        if success:
-            return {"success": True, "message": f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서가 삭제되었습니다."}
-        else:
-            return {"success": False, "message": f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서를 찾을 수 없습니다."}
+        return {"success": True, "message": f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서가 삭제되었습니다."}
     
     except Exception as e:
         logger.error(f"문서 삭제 중 오류 발생: {str(e)}")

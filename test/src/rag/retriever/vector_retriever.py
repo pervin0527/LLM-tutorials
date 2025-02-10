@@ -1,5 +1,6 @@
 import os
 import faiss
+import numpy as np
 
 from datetime import datetime
 from fastapi import APIRouter, Request
@@ -31,7 +32,7 @@ class VectorStore:
 
     
     def create_vector_db(self, index_type):
-        logger.info(f"🚀 벡터 DB 초기화 중... (타입: {index_type})")
+        logger.info(f"🚀 벡터 DB 초기화 중")
         sample_query = "기업의 비전에 대해 알려주세요."
 
         if index_type == "L2": ## L2 Distance(Euclidean Distance)
@@ -166,32 +167,44 @@ class VectorStore:
         """
         logger.info(f"🔄 '{company_name}' 회사의 문서 업데이트 중... (URL: {url})")
         
-        # 회사명과 URL로 문서 검색
-        document = self.search_document(company_name, url)
+        # 기존 문서의 docstore ID 찾기
+        doc_id = None
+        for id_, doc in self.vector_db.docstore._dict.items():
+            if (isinstance(doc, Document) and 
+                doc.metadata.get("company_name") == company_name and 
+                doc.metadata.get("url") == url):
+                doc_id = id_
+                break
         
-        if document:
-            original_url = document['url']
-            
-            if new_text:
-                document['text'] = new_text
-                logger.info(f"문서 내용이 업데이트되었습니다. (URL: {original_url})")
-            
-            if new_url:
-                document['url'] = new_url
-                logger.info(f"문서 URL이 업데이트되었습니다. (새 URL: {new_url})")
-            
-            # 업데이트된 문서를 Document 객체로 변환하여 벡터 데이터베이스에 반영
-            updated_document = Document(
-                page_content=document['text'],
-                metadata={"company_name": company_name, "url": document['url']}
-            )
-            self.vector_db.docstore._dict.pop(original_url, None)  # 기존 URL로 저장된 문서 제거
-            self.vector_db.docstore._dict[document['url']] = updated_document  # 새로운 URL로 문서 저장
-            logger.info("✅ 문서 업데이트 완료")
-            return document
+        if doc_id is None:
+            logger.warning(f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서를 찾을 수 없습니다.")
+            return None
+
+        # 1. Docstore에서 문서 삭제
+        original_doc = self.vector_db.docstore._dict.pop(doc_id)
         
-        logger.warning(f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서를 찾을 수 없습니다.")
-        return None
+        # 2. FAISS 인덱스에서 벡터 삭제
+        # docstore ID를 FAISS 인덱스 ID로 변환
+        index_id = list(self.vector_db.index_to_docstore_id.keys())[
+            list(self.vector_db.index_to_docstore_id.values()).index(doc_id)
+        ]
+        self.vector_db.index_to_docstore_id.pop(index_id)
+        self.vector_db.index.remove_ids(np.array([index_id]))
+
+        # 3. 새로운 문서 생성
+        updated_text = new_text if new_text else original_doc.page_content
+        updated_url = new_url if new_url else url
+        
+        updated_document = Document(
+            page_content=updated_text,
+            metadata={"company_name": company_name, "url": updated_url}
+        )
+
+        # 4. 새로운 문서 추가
+        self.vector_db.add_documents([updated_document])
+        
+        logger.info("✅ 문서 업데이트 완료")
+        return updated_document
 
 
     def delete_document(self, company_name, url):
@@ -200,18 +213,37 @@ class VectorStore:
         """
         logger.info(f"🗑️ '{company_name}' 회사의 URL '{url}'에 해당하는 문서 삭제 중...")
         
-        # 회사명과 URL로 문서 검색
-        document = self.search_document(company_name, url)
+        # docstore에서 문서 ID 찾기
+        doc_id = None
+        for id_, doc in self.vector_db.docstore._dict.items():
+            if (isinstance(doc, Document) and 
+                doc.metadata.get("company_name") == company_name and 
+                doc.metadata.get("url") == url):
+                doc_id = id_
+                break
         
-        if document:
-            original_url = document['url']
-            # 벡터 데이터베이스에서 문서 삭제
-            self.vector_db.docstore._dict.pop(original_url, None)
-            logger.info(f"✅ 문서 삭제 완료: {original_url}")
+        if doc_id is None:
+            logger.warning(f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서를 찾을 수 없습니다.")
+            return False
+
+        try:
+            # 1. Docstore에서 문서 삭제
+            self.vector_db.docstore._dict.pop(doc_id)
+            
+            # 2. FAISS 인덱스에서 벡터 삭제
+            # docstore ID를 FAISS 인덱스 ID로 변환
+            index_id = list(self.vector_db.index_to_docstore_id.keys())[
+                list(self.vector_db.index_to_docstore_id.values()).index(doc_id)
+            ]
+            self.vector_db.index_to_docstore_id.pop(index_id)
+            self.vector_db.index.remove_ids(np.array([index_id]))
+            
+            logger.info(f"✅ 문서 삭제 완료 (doc_id: {doc_id}, index_id: {index_id})")
             return True
-        
-        logger.warning(f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서를 찾을 수 없습니다.")
-        return False
+            
+        except Exception as e:
+            logger.error(f"문서 삭제 중 오류 발생: {str(e)}")
+            return False
     
 
     def similarity_search_with_score(self, query):
@@ -220,8 +252,8 @@ class VectorStore:
 
         results = self.vector_db.similarity_search_with_score(query, k=k)
 
-        # numpy.float32 → float 변환
-        results = [(doc, float(score)) for doc, score in results]
+        # numpy.float32 → float 변환 및 score로 내림차순 정렬
+        results = sorted([(doc, float(score)) for doc, score in results], key=lambda x: x[1], reverse=True)
 
         return results
         
@@ -231,7 +263,7 @@ class VectorStore:
 
         results = self.vector_db.similarity_search_with_relevance_scores(query, k=k)
 
-        # numpy.float32 → float 변환
-        results = [(doc, float(score)) for doc, score in results]
+        # numpy.float32 → float 변환 및 score로 내림차순 정렬
+        results = sorted([(doc, float(score)) for doc, score in results], key=lambda x: x[1], reverse=True)
 
         return results
