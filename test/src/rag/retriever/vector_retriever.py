@@ -55,11 +55,12 @@ class VectorStore:
         )
         logger.info("✅ 벡터 DB 초기화 완료")
 
-        documents = load_documents_from_db()
+        documents = load_documents_from_db(db_name='culture_db', collection_name='company_homepage')
         logger.info(f"문서 로드 완료 : {len(documents)}")
-        
-        vector_db.add_documents(documents)
-        logger.info("✅ 문서 추가 완료")
+
+        if documents:
+            vector_db.add_documents(documents)
+            logger.info("✅ 문서 추가 완료")
 
         self.vector_db = vector_db
 
@@ -78,14 +79,60 @@ class VectorStore:
         logger.info(f"✅ 벡터 데이터베이스 생성 완료. 저장 경로: {save_path}")
 
 
-    def load_vector_db(self, index_file_path, embed_model):
-        logger.info(f"벡터 데이터베이스 로드 중... (경로: {index_file_path})")
-        vector_db = FAISS.load_local(index_file_path, embeddings=embed_model, allow_dangerous_deserialization=True)
-        logger.info("✅ 벡터 데이터베이스 로드 완료")
+    def load_vector_db(self, index_file_path):
+        """
+        벡터 데이터베이스를 로드하거나, 존재하지 않을 경우 새로운 벡터 데이터베이스를 생성합니다.
+        """
+        logger.info(f"🔍 벡터 데이터베이스 로드 중... (경로: {index_file_path})")
 
-        self.vector_db = vector_db
-        return vector_db
-       
+        # 1. 인덱스 파일 존재 여부 확인
+        if not os.path.exists(index_file_path):
+            logger.warning(f"❌ 인덱스 파일이 존재하지 않습니다: {index_file_path}")
+            logger.info("🚀 새로운 벡터 데이터베이스를 생성합니다...")
+            
+            # 2. 새로운 벡터 DB 생성
+            vector_db = self.create_vector_db(index_type=self.cfg['index_type'])
+
+            # 3. 새로운 벡터 DB 저장
+            self.save_vector_db(vector_db)
+
+            self.vector_db = vector_db
+            logger.info("✅ 새로운 벡터 데이터베이스가 성공적으로 생성 및 저장되었습니다.")
+            return vector_db
+
+        try:
+            # 4. 기존 인덱스 로드
+            vector_db = FAISS.load_local(index_file_path, embeddings=self.embed_model, allow_dangerous_deserialization=True)
+
+            # 5. 기존 인덱스의 차원 확인
+            dim = vector_db.index.d
+
+            # 6. 새로운 빈 인덱스 생성
+            if isinstance(vector_db.index, faiss.IndexFlatL2):
+                new_index = faiss.IndexFlatL2(dim)
+            elif isinstance(vector_db.index, faiss.IndexFlatIP):
+                new_index = faiss.IndexFlatIP(dim)
+            elif isinstance(vector_db.index, faiss.IndexHNSWFlat):
+                new_index = faiss.IndexHNSWFlat(dim, 32)  # HNSW M 파라미터 기본값 32
+            else:
+                raise ValueError("❌ 지원하지 않는 인덱스 타입입니다.")
+
+            # 7. 기존 벡터들을 새 인덱스로 복사
+            if vector_db.index.ntotal > 0:
+                vectors = vector_db.index.reconstruct_n(0, vector_db.index.ntotal)
+                new_index.add(vectors)
+
+            # 8. 새 인덱스로 교체
+            vector_db.index = new_index
+            logger.info("✅ 벡터 데이터베이스 로드 완료")
+
+            self.vector_db = vector_db
+            return vector_db
+
+        except Exception as e:
+            logger.error(f"❌ Vector DB Initialization Error: {str(e)}")
+            raise RuntimeError(f"Vector DB 로드 중 오류 발생: {str(e)}")
+        
 
     def search_company(self, company_name):
         """
@@ -246,24 +293,97 @@ class VectorStore:
             return False
     
 
-    def similarity_search_with_score(self, query):
-        k = int(self.cfg.get('top_k', 10))
-        fetch_k = k * 2
-
-        results = self.vector_db.similarity_search_with_score(query, k=k)
-
-        # numpy.float32 → float 변환 및 score로 내림차순 정렬
-        results = sorted([(doc, float(score)) for doc, score in results], key=lambda x: x[1], reverse=True)
-
-        return results
+    def similarity_search_with_score(self, query: str, filter: str = None, fetch_k: int = None):
+        """
+        유사도 검색을 수행하고 score를 반환하는 함수
         
-    def similarity_search_with_relevance_scores(self, query):
+        Args:
+            query (str): 검색할 쿼리 문자열
+            filter (str, optional): 회사명으로 필터링할 경우 사용. 예: "samsung"
+            fetch_k (int, optional): 검색할 문서 수. 기본값은 k의 2배
+            
+        Returns:
+            List[Tuple[Document, float]]: 문서와 유사도 점수 튜플의 리스트
+        """
         k = int(self.cfg.get('top_k', 10))
-        fetch_k = k * 2
-
-        results = self.vector_db.similarity_search_with_relevance_scores(query, k=k)
+        
+        # fetch_k가 None이면 k의 2배로 설정
+        if fetch_k is None:
+            fetch_k = k * 2
+            
+        # filter가 있으면 회사명으로 필터 조건 생성
+        filter_dict = None
+        if filter:
+            filter_dict = {"company_name": filter}
+            
+        results = self.vector_db.similarity_search_with_score(
+            query,
+            k=k,
+            filter=filter_dict,
+            fetch_k=fetch_k
+        )
 
         # numpy.float32 → float 변환 및 score로 내림차순 정렬
         results = sorted([(doc, float(score)) for doc, score in results], key=lambda x: x[1], reverse=True)
 
         return results
+
+
+    def similarity_search_with_relevance_scores(self, query: str, filter: str = None, fetch_k: int = None):
+        """
+        유사도 검색을 수행하고 relevance score를 반환하는 함수
+        
+        Args:
+            query (str): 검색할 쿼리 문자열
+            filter (str, optional): 회사명으로 필터링할 경우 사용. 예: "samsung"
+            fetch_k (int, optional): 검색할 문서 수. 기본값은 k의 2배
+            
+        Returns:
+            List[Tuple[Document, float]]: 문서와 관련도 점수 튜플의 리스트
+        """
+        k = int(self.cfg.get('top_k', 10))
+        
+        # fetch_k가 None이면 k의 2배로 설정
+        if fetch_k is None:
+            fetch_k = k * 2
+            
+        # filter가 있으면 회사명으로 필터 조건 생성
+        filter_dict = None
+        if filter:
+            filter_dict = {"company_name": filter}
+            
+        results = self.vector_db.similarity_search_with_relevance_scores(
+            query,
+            k=k,
+            filter=filter_dict,
+            fetch_k=fetch_k
+        )
+
+        # numpy.float32 → float 변환 및 score로 내림차순 정렬
+        results = sorted([(doc, float(score)) for doc, score in results], key=lambda x: x[1], reverse=True)
+
+        return results
+
+    def clear_all_documents(self):
+        """
+        벡터 데이터베이스의 모든 문서를 삭제합니다.
+        """
+        logger.info("🗑️ 벡터 DB의 모든 문서 삭제 중...")
+
+        # 모든 문서 ID 수집
+        all_doc_ids = list(self.vector_db.docstore._dict.keys())
+
+        # 모든 문서 삭제
+        for doc_id in all_doc_ids:
+            # 1. Docstore에서 문서 삭제
+            self.vector_db.docstore._dict.pop(doc_id, None)
+            
+            # 2. FAISS 인덱스에서 벡터 삭제
+            if doc_id in self.vector_db.index_to_docstore_id.values():
+                index_id = list(self.vector_db.index_to_docstore_id.keys())[
+                    list(self.vector_db.index_to_docstore_id.values()).index(doc_id)
+                ]
+                self.vector_db.index_to_docstore_id.pop(index_id, None)
+                self.vector_db.index.remove_ids(np.array([index_id]))
+
+        logger.info("✅ 벡터 DB의 모든 문서 삭제 완료")

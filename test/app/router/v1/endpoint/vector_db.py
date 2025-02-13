@@ -18,7 +18,7 @@ def search_company_api(request: Request, company_name: str):
         vector_store = request.app.state.vector_store
         count = vector_store.search_company(company_name)
         
-        return {"success": True, "count": count}
+        return {"status": "success", "count": count}
     
     except Exception as e:
         logger.error(f"회사 검색 중 오류 발생: {str(e)}")
@@ -36,14 +36,14 @@ def delete_company_api(request: Request, company_name: str):
 
         collection = connect_to_mongo("culture_db", "company_websites")
         if collection is None:
-            return {"success": False, "message": "MongoDB 연결 실패"}
+            return {"status": "error", "message": "MongoDB 연결 실패"}
         
         delete_company(collection, company_name)
         
         if success:
-            return {"success": True, "message": f"'{company_name}' 회사의 문서가 삭제되었습니다."}
+            return {"status": "success", "message": f"'{company_name}' 회사의 문서가 삭제되었습니다."}
         else:
-            return {"success": False, "message": f"'{company_name}' 회사의 문서를 찾을 수 없습니다."}
+            return {"status": "error", "message": f"'{company_name}' 회사의 문서를 찾을 수 없습니다."}
     
     except Exception as e:
         logger.error(f"문서 삭제 중 오류 발생: {str(e)}")
@@ -62,9 +62,9 @@ def get_company_documents_api(request: Request, company_name: str):
         results = vector_store.get_company_documents(company_name)
         
         if not results:
-            return {"success": False, "message": f"'{company_name}' 회사의 문서를 찾을 수 없습니다."}
+            return {"status": "error", "message": f"'{company_name}' 회사의 문서를 찾을 수 없습니다."}
         
-        return {"success": True, "data": results}
+        return {"status": "success", "data": results}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문서 검색 중 오류 발생: {str(e)}")
@@ -80,9 +80,9 @@ def search_document_api(request: Request, company_name: str, url: str):
         document = vector_store.search_document(company_name, url)
         
         if document:
-            return {"success": True, "data": document}
+            return {"status": "success", "data": document}
         else:
-            return {"success": False, "message": f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서를 찾을 수 없습니다."}
+            return {"status": "error", "message": f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서를 찾을 수 없습니다."}
     
     except Exception as e:
         logger.error(f"문서 검색 중 오류 발생: {str(e)}")
@@ -97,12 +97,12 @@ def update_document_api(request: Request, company_name: str, url: str, new_url: 
     try:
         collection = connect_to_mongo("culture_db", "company_websites")
         if collection is None:
-            return {"success": False, "message": "MongoDB 연결 실패"}
+            return {"status": "error", "message": "MongoDB 연결 실패"}
         
         vector_store = request.app.state.vector_store
         update_page_content(collection, vector_store, company_name, url, new_url, new_text)
         
-        return {"success": True, "message": "문서 업데이트 성공"}
+        return {"status": "success", "message": "문서 업데이트 성공"}
     
     except Exception as e:
         logger.error(f"문서 업데이트 중 오류 발생: {str(e)}")
@@ -117,12 +117,12 @@ def delete_document_api(request: Request, company_name: str, url: str):
     try:
         collection = connect_to_mongo("culture_db", "company_websites")
         if collection is None:
-            return {"success": False, "message": "MongoDB 연결 실패"}
+            return {"status": "error", "message": "MongoDB 연결 실패"}
 
         vector_store = request.app.state.vector_store
         delete_page(collection, vector_store, company_name, url)
         
-        return {"success": True, "message": f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서가 삭제되었습니다."}
+        return {"status": "success", "message": f"'{company_name}' 회사의 URL '{url}'에 해당하는 문서가 삭제되었습니다."}
     
     except Exception as e:
         logger.error(f"문서 삭제 중 오류 발생: {str(e)}")
@@ -138,7 +138,7 @@ def similarity_search_with_score_api(request: Request, query: str):
         vector_store = request.app.state.vector_store
         results = vector_store.similarity_search_with_score(query)
         
-        return {"success": True, "data": results}
+        return {"status": "success", "data": results}
     
     except Exception as e:
         logger.error(f"유사도 검색 중 오류 발생: {str(e)}")
@@ -154,7 +154,7 @@ def similarity_search_with_relevance_scores_api(request: Request, query: str):
         vector_store = request.app.state.vector_store
         results = vector_store.similarity_search_with_relevance_scores(query)
         
-        return {"success": True, "data": results}
+        return {"status": "success", "data": results}
     
     except Exception as e:
         logger.error(f"관련성 점수 검색 중 오류 발생: {str(e)}")

@@ -1,23 +1,37 @@
 import time
 import json
 
+from typing import List
 from datetime import datetime
+from urllib.parse import urlparse, urlunparse
+
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
 
-from app.utils.logging import logger
+try:
+    from app.utils.logging import logger
+except:
+    import logging
+    logger = logging.getLogger(__name__)
 
-def set_webdriver(start_url):
-    logger.info(f"웹드라이버 설정 시작: {start_url}")
+
+def set_webdriver():
     options = Options()
-    # options.add_argument('--headless')
+    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    
+
+    # 한글 폰트 설정
+    options.add_argument("--font-render-hinting=none")
+    options.add_argument("--lang=ko_KR")
+
     # 추가적인 헤더 설정
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
@@ -45,42 +59,22 @@ def set_webdriver(start_url):
         '''
     })
     
-    # 페이지 로딩 대기 시간 증가
-    driver.get(start_url)
-    time.sleep(1)
-    
     logger.info("웹드라이버 설정 완료")
+    
     return driver
 
 
-def save_tree(tree, filename="crawl_result.json"):
-    """크롤링 결과를 JSON 파일로 저장"""
-
-    with open(filename, "w", encoding="utf-8") as json_file:
-        json.dump(tree, json_file, ensure_ascii=False, indent=4)
-        
-    print(f"크롤링 결과가 {filename} 파일로 저장되었습니다.")
-
-
-def transform_data(web_tree, company_name):   
-    def extract_pages(data):
-        pages = []
-        stack = [data]  # 루트 데이터부터 탐색 시작
-        
-        while stack:
-            current = stack.pop()
-            pages.append({"url": current["url"], "text": current.get("text", "")})
-            stack.extend(current.get("children", []))  # 자식 요소들을 스택에 추가
-        
-        return pages
+def wait_for_element(driver:WebDriver, by:By, value:str, timeout:int=5, retries:int=5):
+    current_url = driver.current_url  # 현재 URL 저장
     
-    current_time = datetime.today().strftime("%y.%m.%d-%H:%M:%S")
-    formatted_data = {
-        "company": company_name,
-        "collected_date": current_time,
-        "updated_date": None,
-        "root_url": web_tree["url"],
-        "pages": extract_pages(web_tree)
-    }
-    
-    return formatted_data
+    for attempt in range(retries):
+        try:
+            element = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((by, value)))
+            return element
+        
+        except Exception as e:
+            if attempt == retries - 1:
+                raise e
+            logger.info(f"요소를 찾지 못해 페이지 재접속 시도 ({attempt + 1}/{retries})")
+            driver.get(current_url)  # 현재 URL로 다시 접속
+            time.sleep(5)  # 페이지 로드를 위한 대기 시간

@@ -55,14 +55,13 @@ def create_app():
         try:
             if cfg['index_load_path'] is None:
                 logger.info(f"⚙️  Index Type: {cfg['index_type']}")
+                
                 app.state.vector_store.create_vector_db(cfg['index_type'])
-                logger.info("✅ Vector DB Created")
-                # 생성 후 상태 재확인
-                logger.info(f"Vector store after creation: {app.state.vector_store}")
-
                 app.state.vector_store.save_vector_db(app.state.vector_store.vector_db)
+                logger.info("✅ Vector DB Created")
+
             else:
-                app.state.vector_store.load_vector_db(cfg['index_load_path'], cfg['model_name'])
+                app.state.vector_store.load_vector_db(cfg['index_load_path'])
                 
         except Exception as e:
             logger.error(f"❌ Vector DB Initialization Error: {str(e)}")

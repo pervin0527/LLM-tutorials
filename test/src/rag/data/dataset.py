@@ -5,11 +5,13 @@ from app.utils.logging import logger
 from src.db.mongo import connect_to_mongo
 from src.crud.company import get_all_companies
 
-def load_documents_from_db():
-    collection = connect_to_mongo("culture_db", "company_websites")
+def load_documents_from_db(db_name, collection_name):
+    collection = connect_to_mongo(db_name, collection_name)
     if collection is None:
-        logger.warning("MongoDB collection is None.")
+        logger.warning(f"❌ {db_name} - {collection_name} 연결 실패")
         return []
+    
+    logger.info(f"✅ {db_name} - {collection_name} 연결 성공")
 
     # 모든 회사 데이터 가져오기
     result = get_all_companies(collection)
@@ -21,6 +23,7 @@ def load_documents_from_db():
     total_docs = []
     for company in all_companies:
         company_name = company.get("company", "Unknown")
+        company_id = company.get("company_id", "Unknown")
         pages = company.get("pages", [])
 
         logger.info(f"{company_name} - {len(pages)}")
@@ -28,7 +31,7 @@ def load_documents_from_db():
         documents = [
             Document(
                 page_content=page["text"],
-                metadata={"company_name": company_name, "url": page["url"]},
+                metadata={"company_name": company_name, "url": page["url"], "company_id": company_id},
                 id=uuid4()
             )
             for page in pages
@@ -48,8 +51,9 @@ def convert_to_documents(formatted_data):
             Document(
                 page_content=item["text"],
                 metadata={
-                    "company_name": formatted_data.get("company", ""),
+                    "company": formatted_data.get("company", ""),
                     "url": item.get("url", ""),
+                    "company_id": formatted_data.get("company_id", ""),
                 },
                 id=uuid4()
             )

@@ -39,10 +39,13 @@ RUN apt-get update -q && \
     libvulkan1 \
     xdg-utils \
     tini \
+    fonts-nanum \
     libmagic1 \
     --no-install-recommends && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+RUN fc-cache -fv
 
 # Google Chrome 설치 (127.0.6533.88 버전)
 RUN wget -q https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_127.0.6533.88-1_amd64.deb && \
