@@ -27,6 +27,7 @@ def set_webdriver():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
+    options.add_argument('--start-maximized')
 
     # 한글 폰트 설정
     options.add_argument("--font-render-hinting=none")

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 class CompanyName(BaseModel):
     company_name: str
@@ -55,14 +55,15 @@ class CompaniesResponse(BaseModel):
 
 class CompanyRegistration(BaseModel):
     biz_no: str
-    company_name: str
-    homepage: str
+    company_name: Optional[str] = None
+    homepage: Optional[str] = None
 
 
 class CompanyResponse(BaseModel):
-    biz_no: str
+    company_id: str
     company_name: str
-    homepage: str
+    biz_no: str
+    homepage: Optional[str]
     status: str
 
 
@@ -73,7 +74,8 @@ class NewsItem(BaseModel):
 
 
 class CompanyNewsResponse(BaseModel):
-    company: str
+    company_id: str
+    company_name: str
     biz_no: str
     collected_date: Optional[str] = None
     updated_date: Optional[str] = None
@@ -121,7 +123,12 @@ class CompanyReview(BaseModel):
 
 class CompanyReviewResponse(BaseModel):
     """회사 리뷰 응답 모델"""
-    company: str = Field(
+
+    company_id: str = Field(
+        description="회사 ID",
+        example="666666666666666666666666"
+    )
+    company_name: str = Field(
         description="회사명",
         example="코리아교육그룹"
     )
@@ -145,7 +152,8 @@ class CompanyReviewResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "company": "코리아교육그룹",
+                "company_id": "666666666666666666666666",
+                "company_name": "코리아교육그룹",
                 "biz_no": "214-87-88737",
                 "collected_date": "25.02.13-02:58:31",
                 "updated_date": "25.02.13-02:58:31",
@@ -164,3 +172,66 @@ class CompanyReviewResponse(BaseModel):
                 ]
             }
         }
+
+
+class ReviewDataItem(BaseModel):
+    position: Optional[str]
+    employ_status: Optional[str]
+    working_area: Optional[str]
+    review_date: Optional[str]
+    rate: Optional[str]
+    title: Optional[str]
+    positive: Optional[str]
+    negative: Optional[str]
+    expectation: Optional[str]
+
+
+class ReviewData(BaseModel):
+    _id: str
+    company: str
+    collected_date: str
+    company_id: str
+    jobplanet_id: Optional[int]
+    platform: str
+    review_data: List[ReviewDataItem]
+    root_url: Optional[str]
+    updated_date: str
+
+
+class NewsDataItem(BaseModel):
+    title: str
+    url: str
+    page_text: Optional[str]
+
+
+class NewsData(BaseModel):
+    _id: str
+    company: str
+    collected_date: str
+    company_id: str
+    news_data: List[NewsDataItem]
+    updated_date: str
+
+
+class WelfareItem(BaseModel):
+    source: str
+    welfare_data: Dict[str, Any]  # 다양한 형태의 데이터를 허용
+
+
+class WelfareData(BaseModel):
+    _id: str
+    company: str
+    collected_date: str
+    company_id: str
+    welfare_data: List[WelfareItem]
+    updated_date: str
+
+
+class CompanyTotalData(BaseModel):
+    company_id: str
+    company_name: str
+    biz_no: str
+    page_data: Optional[Dict[str, Any]]  # Null 가능
+    review_data: Optional[ReviewData]
+    news_data: Optional[NewsData]
+    welfare_data: Optional[WelfareData]

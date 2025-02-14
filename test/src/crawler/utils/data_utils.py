@@ -1,5 +1,7 @@
+import re
 import json
 
+from typing import Optional
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
 
@@ -85,3 +87,15 @@ def normalize_url(url: str) -> str:
     )).rstrip('/')  # 마지막에 한번 더 슬래시 제거
     
     return normalized
+
+
+def extract_company_id(url: str) -> Optional[str]:
+    """
+    URL에서 /companies/ 뒤에 나오는 숫자(기업 ID)를 추출합니다.
+    예) 'https://www.jobplanet.co.kr/companies/93880/premium_reviews/카카오' → '93880'
+    """
+    pattern = r'/companies/(\d+)'
+    match = re.search(pattern, url)
+    if match:
+        return match.group(1)
+    return None

@@ -158,7 +158,7 @@ def get_company_welfare_api(company_name: str):
                 
         company_bizno = company_data.get("biz_no", None)
         company_url = company_data.get("homepage", None)
-        data = get_company_welfare(company_name, company_bizno, company_url)
+        data = get_company_welfare(company_name, company_url, company_bizno)
 
         if data['welfare_data'] is None:
             return {"status": "error", "message": "data 크롤링 데이터가 비어 있습니다."}

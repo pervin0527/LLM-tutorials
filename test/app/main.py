@@ -21,7 +21,7 @@ def create_app():
     version_manager = APIVersionManager()
     
     base_servers = [
-        {"url": "http://localhost:8881", "description": "로컬 환경 서버"},
+        {"url": "http://localhost:8000", "description": "로컬 환경 서버"},
     ]
         
     version_manager.add_version(

@@ -7,13 +7,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=on \
     PIP_DISABLE_PIP_VERSION_CHECK=on
 
-# 패키지 업데이트 및 필요한 패키지 설치
-ENV ACCEPT_EULA=Y
-
+# 패키지 업데이트 및 필수 패키지 설치
 RUN apt-get update -q && \
-    apt-get upgrade -y -q && \
     apt-get install -y -q \
-    build-essential \
     wget \
     unzip \
     curl \
@@ -47,24 +43,18 @@ RUN apt-get update -q && \
 
 RUN fc-cache -fv
 
-# Google Chrome 설치 (127.0.6533.88 버전)
+# Google Chrome 설치
 RUN wget -q https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_127.0.6533.88-1_amd64.deb && \
     apt-get install -y ./google-chrome-stable_127.0.6533.88-1_amd64.deb && \
     rm google-chrome-stable_127.0.6533.88-1_amd64.deb && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 설치된 Chrome 버전 확인
-RUN google-chrome --version
-
-# ChromeDriver 설치 (크롬 버전과 일치)
+# ChromeDriver 설치
 RUN wget -O /tmp/chromedriver.zip https://storage.googleapis.com/chrome-for-testing-public/127.0.6533.88/linux64/chromedriver-linux64.zip && \
     unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
     chmod +x /usr/local/bin/chromedriver-linux64/chromedriver && \
     rm /tmp/chromedriver.zip
-
-# 설치된 ChromeDriver 버전 확인
-RUN /usr/local/bin/chromedriver-linux64/chromedriver --version
 
 # Python 패키지 설치
 RUN pip install -U \
@@ -77,5 +67,15 @@ RUN pip install -U \
     langchain-elasticsearch \
     'fastapi[standard]'
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install -r /app/requirements.txt
+# 작업 디렉토리 설정
+WORKDIR /culture_backoffice_backend
+
+# requirements.txt 먼저 복사 후 설치 (캐싱 최적화)
+COPY requirements.txt /culture_backoffice_backend/requirements.txt
+RUN pip install -r /culture_backoffice_backend/requirements.txt
+
+# 전체 프로젝트 복사
+COPY . /culture_backoffice_backend/
+
+# FastAPI 실행 시 app 폴더에서 실행하도록 설정
+WORKDIR /culture_backoffice_backend

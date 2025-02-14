@@ -2,10 +2,13 @@ numpy
 pandas
 pymongo
 streamlit
-beautifulsoup4
+
+python-Levenshtein
+scikit-learn
 
 selenium
 webdriver-manager
+beautifulsoup4
 
 openai
 anthropic
