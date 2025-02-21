@@ -1,0 +1,51 @@
+services:
+  mongodb:
+    image: mongo:4.4.29
+    container_name: local-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ai
+      MONGO_INITDB_ROOT_PASSWORD: glab0110!!
+      TZ: Asia/Seoul
+    volumes:
+      - mongodb-data:/data/db  # named volume 사용
+      - mongo_dump:/storage/mongo_dump
+    command: mongod --auth
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  culture_backoffice_data:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: culture_backoffice_data
+    restart: always
+    ports:
+      - "8001:8001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_URI: "mongodb://ai:glab0110!!@mongodb:27017/admin"  # admin 데이터베이스 명시
+      PYTHONPATH: "/culture_backoffice_data"
+    volumes:
+      - .:/culture_backoffice_data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:  # named volume 정의
+  mongo_dump:
