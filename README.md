@@ -4,7 +4,12 @@
 
 ```bash
 docker build -t llm_image:latest .
-docker run --gpus all -it --name llm -v /home/pervinco/:/home/pervinco/ llm_image:latest
+
+docker run --gpus all -it --name llm \
+    -p 8888:8888 \
+    -v /home/ubuntu/:/home/ubuntu/ \
+    llm_image:latest 
+
 docker start llm
 docker exec -it llm bash
 
