@@ -48,8 +48,10 @@ RUN pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url h
 RUN pip install --no-cache-dir -U \
     faiss-gpu \
     langchain \
+    langgraph \
     langchain-core \
     langchain-openai \
+    langchain-anthropic \
     langchain-upstage \
     langchain-community \
     langchain-huggingface \

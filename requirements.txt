@@ -4,3 +4,4 @@ jupyterlab
 ipykernel
 python-dotenv
 pypdf
+tavily-python
