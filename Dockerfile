@@ -51,6 +51,7 @@ RUN pip install --no-cache-dir -U \
     langgraph \
     langchain-core \
     langchain-openai \
+    langchain-tavily \
     langchain-anthropic \
     langchain-upstage \
     langchain-community \
